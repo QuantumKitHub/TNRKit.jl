@@ -32,7 +32,10 @@ Base.:*(a::Number, v::TensorKit.SectorVector) = scale(v, a)
 Base.:*(v::TensorKit.SectorVector, a::Number) = scale(v, a)
 
 struct CFTData{E, I}
-    central_charge::E
+    "Central charge of the CFT. Will be `nothing` if not calculated."
+    central_charge::Union{E, Missing}
+
+    "Scaling dimensions of the CFT."
     scaling_dimensions::TensorKit.SectorVector{E, I}
 end
 
