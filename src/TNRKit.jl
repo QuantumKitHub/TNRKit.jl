@@ -120,7 +120,10 @@ include("utility/free_energy.jl")
 export free_energy
 
 include("utility/cft.jl")
-export CFTData, central_charge, ground_state_degeneracy, gu_wen_ratio
+export CFTData, central_charge
+
+include("utility/gs_degeneracy.jl")
+export ground_state_degeneracy, gu_wen_ratio
 
 include("utility/finalize.jl")
 export Finalizer, two_by_two_Finalizer, finalize!, finalize_two_by_two!, finalize_cftdata!, finalize_central_charge!,
