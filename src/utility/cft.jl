@@ -2,6 +2,12 @@
 Base.broadcasted(f, v::TensorKit.SectorVector) = TensorKit.SectorVector(broadcast(f, parent(v)), v.structure)
 Base.broadcasted(f, v::TensorKit.SectorVector, a) = TensorKit.SectorVector(broadcast(f, parent(v), a), v.structure)
 Base.broadcasted(f, a, v::TensorKit.SectorVector) = TensorKit.SectorVector(broadcast(f, a, parent(v)), v.structure)
+function Base.broadcasted(f, v1::TensorKit.SectorVector, v2::TensorKit.SectorVector)
+    if v1.structure != v2.structure
+        throw(ArgumentError("Cannot broadcast two SectorVectors with different structures"))
+    end
+    return TensorKit.SectorVector(broadcast(f, parent(v1), parent(v2)), v1.structure)
+end
 
 function Base.filter(f, v::TensorKit.SectorVector)
     data = copy(parent(v))
