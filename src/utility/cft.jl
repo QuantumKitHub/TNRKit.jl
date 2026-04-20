@@ -200,7 +200,7 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
 
     # Construct a SectorVector from the data of the different sectors
     data = ComplexF64[]
-    structure = TensorKit.SectorDict{typeof(first(sectors(fuse(xspace)))), UnitRange{Int}}()
+    structure = TensorKit.SectorDict{sectortype(xspace), UnitRange{Int}}()
     last_index = 1
     for charge in sectors(fuse(xspace))
         DeltaS = -1 / (2 * pi * Imτ) * log.(spec_sector[charge] / norm_const_0)
