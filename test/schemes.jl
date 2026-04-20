@@ -11,7 +11,7 @@ const f_benchmark3D = -3.507
 
 function cft_finalize!(scheme)
     finalize!(scheme)
-    return cft_data(scheme)
+    return CFTData(scheme)
 end
 
 # TRG
@@ -26,7 +26,7 @@ end
     scheme = TRG(T)
     run!(scheme, truncrank(24), maxiter(10))
 
-    cft = cft_data(scheme)[2:end]
+    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -65,7 +65,7 @@ end
     scheme = BTRG(T)
     run!(scheme, truncrank(24), maxiter(10))
 
-    cft = cft_data(scheme)[2:end]
+    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 3.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
@@ -102,7 +102,7 @@ end
     scheme = HOTRG(T)
     run!(scheme, truncrank(16), maxiter(4))
 
-    cft = cft_data(scheme)[2:end]
+    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 6.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -139,7 +139,7 @@ end
     scheme = ATRG(T)
     run!(scheme, truncrank(24), maxiter(3))
 
-    cft = cft_data(scheme)[2:end]
+    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 1.0e-2
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -185,7 +185,7 @@ end
     run!(scheme, truncrank(12), maxiter(10))
 
     for shape in [[1, 4, 1], [sqrt(2), 2 * sqrt(2), 0]]
-        cft = cft_data(scheme, shape)
+        cft = sort(CFTData(scheme, shape))
         d1, d2 = real(cft[Z2Irrep(1)][1]), real(cft[Z2Irrep(0)][2])
         @info "Obtained lowest scaling dimensions:\n$(d1), $(d2)."
         @test d1 ≈ ising_cft_exact[1] rtol = 5.0e-4
@@ -193,7 +193,7 @@ end
     end
 
     for shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]]
-        cft = cft_data(scheme, shape, truncrank(12), trunctol(atol = 1.0e-10))
+        cft = sort(CFTData(scheme, shape; trunc = truncrank(16), truncentanglement = trunctol(atol = 1.0e-10)))
         d1, d2 = real(cft[Z2Irrep(1)][1]), real(cft[Z2Irrep(0)][2])
         @info "Obtained lowest scaling dimensions:\n$(d1), $(d2)."
         @test d1 ≈ ising_cft_exact[1] rtol = 1.0e-3

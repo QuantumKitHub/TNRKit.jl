@@ -129,7 +129,7 @@ end
 
 function run!(
         scheme::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit;
-        sweep = 30, return_cft = false, inv = false, conv_criterion = 1.0e-12
+        sweep = 30, inv = false, conv_criterion = 1.0e-12
     )
     area = 1
     lnz = 0.0
@@ -138,9 +138,6 @@ function run!(
     for i in 1:(criterion.n)
         area *= 4.0
         tr_norm = step!(scheme, trunc; sweep = sweep, inv = inv)
-        if return_cft
-            push!(cft, cft_data(scheme; unitcell = 2))
-        end
         lnz += log(tr_norm) / area
         if abs(log(abs(tr_norm)) / area) <= conv_criterion
             @info "CTM-HOTRG converged after $i iterations!"

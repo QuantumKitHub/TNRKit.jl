@@ -167,7 +167,6 @@ function run!(
         criterion::maxiter;
         sweep = 30,
         enlarge = true,
-        return_cft = false,
         inv = false,
         conv_criterion = 1.0e-12,
         modified = true,
@@ -182,9 +181,6 @@ function run!(
         area *= 4.0
         tr_norm = step!(scheme, trunc; sweep = sweep, enlarge = enlarge, inv = inv, modified)
         lnz += log(tr_norm) / area
-        if return_cft
-            push!(cft, cft_data(scheme; unitcell = 2))
-        end
         if abs(log(abs(tr_norm)) / area) <= conv_criterion
             @info "CTM-TRG converged after $steps iterations"
             break
