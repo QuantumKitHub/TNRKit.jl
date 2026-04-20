@@ -26,6 +26,7 @@ include("schemes/hotrg.jl")
 include("schemes/hotrg3d.jl")
 include("schemes/atrg.jl")
 include("schemes/atrg3d.jl")
+
 # CTM methods
 include("schemes/ctm/utility.jl")
 include("schemes/ctm/c4vctm.jl")
@@ -123,7 +124,7 @@ export CFTData, central_charge, ground_state_degeneracy, gu_wen_ratio
 
 include("utility/finalize.jl")
 export Finalizer, two_by_two_Finalizer, finalize!, finalize_two_by_two!, finalize_cftdata!, finalize_central_charge!,
-    finalize_groundstatedegeneracy!, GSDegeneracy_Finalizer, guwenratio_Finalizer
+    finalize_groundstatedegeneracy!, CFT_Finalizer, GSDegeneracy_Finalizer, guwenratio_Finalizer
 
 include("utility/cdl.jl")
 export cdl_tensor

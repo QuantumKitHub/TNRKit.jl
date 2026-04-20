@@ -129,6 +129,8 @@ function finalize_cftdata!(scheme::TNRScheme)
     return CFTData(scheme)
 end
 
+CFT_Finalizer = Finalizer(finalize_cftdata!, CFTData)
+
 function finalize_cftdata!(scheme::SLoopTNR) # TODO: remove this
     tr_norm = trnorm_2x2(scheme.T)
     scheme.T /= tr_norm^0.25
