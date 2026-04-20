@@ -7,7 +7,7 @@ Corner Transfer Matrix environment + Higher-Order Tensor Renormalization Group
     $(FUNCTIONNAME)(T, χenv[, ctm_iter=maxiter(2.0e4), ctm_tol=trivial_convcrit(1.0e-9), ctm_obc=false, χenv_ini=2])
 
 ### Running the algorithm
-    run!(::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit[, sweep=30, return_cft=false, inv=false, conv_criterion=1.0e-12])
+    run!(::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit[, sweep=30, inv=false, conv_criterion=1.0e-12])
 
 ### Fields
 
@@ -133,7 +133,6 @@ function run!(
     )
     area = 1
     lnz = 0.0
-    cft = []
 
     for i in 1:(criterion.n)
         area *= 4.0
@@ -144,11 +143,7 @@ function run!(
             break
         end
     end
-    if return_cft
-        return lnz, cft
-    else
-        return lnz
-    end
+    return lnz
 end
 
 function Base.show(io::IO, scheme::ctm_HOTRG)
