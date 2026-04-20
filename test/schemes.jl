@@ -24,9 +24,9 @@ end
 
     @info "TRG ising CFT data"
     scheme = TRG(T)
-    run!(scheme, truncrank(16), maxiter(8))
+    run!(scheme, truncrank(24), maxiter(10))
 
-    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -63,9 +63,9 @@ end
 
     @info "BTRG ising CFT data"
     scheme = BTRG(T)
-    run!(scheme, truncrank(16), maxiter(8))
+    run!(scheme, truncrank(24), maxiter(10))
 
-    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 3.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
@@ -102,7 +102,7 @@ end
     scheme = HOTRG(T)
     run!(scheme, truncrank(16), maxiter(4))
 
-    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 6.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -139,7 +139,7 @@ end
     scheme = ATRG(T)
     run!(scheme, truncrank(24), maxiter(3))
 
-    cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 1.0e-2
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
