@@ -24,7 +24,7 @@ end
 
     @info "TRG ising CFT data"
     scheme = TRG(T)
-    run!(scheme, truncrank(24), maxiter(10))
+    run!(scheme, truncrank(16), maxiter(8))
 
     cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
@@ -63,7 +63,7 @@ end
 
     @info "BTRG ising CFT data"
     scheme = BTRG(T)
-    run!(scheme, truncrank(24), maxiter(10))
+    run!(scheme, truncrank(16), maxiter(8))
 
     cft = sort(CFTData(scheme).scaling_dimensions[2:end]; by = abs) .|> real
 
