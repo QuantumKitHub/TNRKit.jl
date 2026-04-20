@@ -15,15 +15,16 @@ end
     classical_clock(q::Int, β::Real; kwargs...)
     classical_clock(::Type{Trivial}, q::Int, β::Real; T::Type{<:Number} = Float64)
     classical_clock(::Type{ZNIrrep{N}}, q::Int, β::Real; T::Type{<:Number} = Float64) where {N}
+    classical_clock(::Type{DNIrrep{N}}, q::Int, β::Real; T::Type{<:Number} = Float64) where {N}
 
 Constructs the partition function tensor for the classical clock model with `q` states
 and a given inverse temperature `β`.
 
-Compatible with no symmetry or with explicit ℤq symmetry on each of its spaces.
-Defaults to ℤq symmetry if the symmetry type is not provided.
+Compatible with no symmetry, with explicit ℤq symmetry or Dq symmetry on each of its spaces.
+Defaults to Dq symmetry if the symmetry type is not provided.
 """
 function classical_clock(q::Int, β::Real; kwargs...)
-    return classical_clock(ZNIrrep{q}, q, β; kwargs...)
+    return classical_clock(DNIrrep{q}, q, β; kwargs...)
 end
 function classical_clock(::Type{Trivial}, q::Int, β::Real; kwargs...)
     return clock_tensor(q, β; kwargs...)
@@ -45,4 +46,49 @@ function classical_clock(::Type{ZNIrrep{N}}, q::Int, β::Real; T::Type{<:Number}
     V = ZNSpace{q}(i => 1 for i in 0:(q - 1))
     t = TensorMap(convert(Array, Anew), V ⊗ V ← V ⊗ V)
     return T <: Real ? real(t) : t
+end
+
+function classical_clock(::Type{DNIrrep{N}}, q::Int, β::Real; T::Type{<:Number} = Float64) where {N}
+    @assert N == q "number of irreps must match the number of states"
+
+    FunZN, m = FunZN_Dihedral(q; T = T)
+
+    bond = zeros(T, FunZN ← FunZN)
+
+    for (s, f) in fusiontrees(bond)
+        charge = f.coupled.j
+        bond[s, f] .= sum(cos(2pi / q * spin * charge) * exp(β * cos(2pi / q * spin)) for spin in 0:(q - 1))
+    end
+
+    t = algebraic_initialization(m, bond)
+
+    return t
+end
+
+function FunZN_Dihedral(N::Int; T::Type{<:Number} = Float64)
+    n = N ÷ 2
+
+    # Define which irreps are 1D irrep
+    is_one_d(j) = iseven(N) ? (j == 0 || j == n) : (j == 0)
+
+    FunZN = Rep[Dihedral{N}](DNIrrep{N}(k) => 1 for k in 0:n)
+
+    m = zeros(T, FunZN ← FunZN ⊗ FunZN)
+
+    for (s, f) in fusiontrees(m)
+        upleft, upright = f.uncoupled
+        down = f.coupled
+
+        if is_one_d(upleft.j) || is_one_d(upright.j)
+            m[s, f] .= 1
+        elseif is_one_d(down.j)
+            m[s, f] .= sqrt(2)
+        else
+            m[s, f] .= 1
+        end
+    end
+
+    m /= sqrt(N)
+
+    return FunZN, m
 end

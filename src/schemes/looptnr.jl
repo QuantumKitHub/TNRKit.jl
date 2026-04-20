@@ -19,8 +19,8 @@ Loop Optimization for Tensor Network Renormalization
 ### LoopParameters
 See also: [`LoopParameters`](@ref)
 This stuct is used to set all internal parameters in LoopTNR.
-It can also be used to control wether Krylov methods are used (default: false)
-And wether nuclear norm regularization is used (default: false)
+It can also be used to control whether Krylov methods are used (default: false)
+And whether nuclear norm regularization is used (default: false)
 
 ### Fields
 
@@ -65,7 +65,8 @@ It also allows the user to turn on nuclear norm regularization.
     # Krylov parameters
     "Use Krylov methods to solve the linear system in loop optimization. Default = false, which uses the backslash operator."
     krylov::Bool = false
-    krylovalg::A = GMRES(; verbosity = 0)
+    "Default Krylov algorithm is GMRES with maxiter = 250, krylovdim = 128, tol = 1.0e-10, verbosity = 0."
+    krylovalg::A = GMRES(; maxiter = 250, krylovdim = 128, tol = 1.0e-10, verbosity = 0)
 
     # NNR parameters
     "Use Nuclear Norm Regularisation. Default = false"

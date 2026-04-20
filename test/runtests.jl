@@ -1,6 +1,7 @@
 using Test
 using TNRKit
 using TensorKit
+using TensorKitSectors
 using QuadGK
 
 include("spaces.jl") # do they give spacemismatches?
@@ -10,3 +11,4 @@ include("schemes_honeycomb.jl") # do they give the correct results (with the exp
 include("models.jl") # do they give the correct results (with the expected accuracy)?
 include("fermions.jl") # do they give the correct results (with the expected accuracy)?
 include("entropies.jl") # do they work?
+include("algebras.jl")

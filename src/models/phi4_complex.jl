@@ -105,7 +105,7 @@ function moment_matrix(N, μ0, λ; rtol = 1.0e-8)
     return M
 end
 
-function phi4_complex_tensor(f::TensorMap{TT, SS, NN, NN}, weights::Matrix{Float64}; T::Type{<:Number} = ComplexF64) where {TT, SS, NN} # for Trivial symmetry
+function phi4_complex_tensor(f::TensorMap{TT, SS, NN, NN}, weights::Matrix{<:Number}; T::Type{<:Number} = ComplexF64) where {TT, SS, NN} # for Trivial symmetry
     K = size(weights, 1)
     N = K^2
     perms = collect(permutations(1:4))  # 24 total
@@ -156,9 +156,22 @@ Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry or explicit U(1) s
 Defaults to U(1) symmetry if the symmetry type is not provided.
 
 ### Arguments
-- `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
+- `K::Integer`: Approximation parameter.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
+
+### Approximation parameter `K`
+#### Trivial (no symmetry)
+The tensor is constructed by performing a Gauss-Hermite quadrature to approximate the integrals in the partition function.
+The bond dimension is equal to `K^2`.
+
+#### ℤ₂×ℤ₂ symmetry
+The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
+The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
+
+#### U(1) symmetry
+The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
+The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 
 ### Examples
 ```julia
@@ -253,58 +266,75 @@ function phi4_complex(::Type{Z2Irrep ⊠ Z2Irrep}, K::Integer, μ0::Float64, λ:
 end
 function phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
     if K % 2 != 0
-        error("K must be even to split into even/odd groups")
+        error("K must be even")
     end
 
-    # precompute
     moments = precompute_moments_complex(K, μ0, λ)
-    # log factorials 0..K-1
     logfact = log.(factorial.(0:(K - 1)))
 
-    T_arr = zeros(T, K, K, K, K, K, K, K, K)
+    V1 = U1Space([U1Irrep(q) => 1 for q in 0:(K - 1)]...)
+    V2 = U1Space([U1Irrep(q) => 1 for q in 0:-1:(-K + 1)]...)
+    W = fuse(V1, V2)
 
-    @threads for a in 0:(K - 1)
-        for b in 0:(K - 1), c in 0:(K - 1), d in 0:(K - 1), e in 0:(K - 1), f in 0:(K - 1), g in 0:(K - 1)
-            # solve delta for l4:
-            # b + d + e + g = a + c + f + h
-            h = e + g + b + d - a - c - f
+    # Build multiplicity index lookup:
+    # For fused charge q = a - B, the pairs (a, B) are ordered by increasing a.
+    # mult_index[q][a] = the 1-based index into the W-block for that pair.
+    mult_index = Dict{Int, Dict{Int, Int}}()
+    for q in (-(K - 1)):(K - 1)
+        pairs = Int[]
+        for a in max(0, q):(min(K - 1, q + K - 1))
+            B = a - q
+            (0 <= B <= K - 1) || continue
+            push!(pairs, a)
+        end
+        mult_index[q] = Dict(a => i for (i, a) in enumerate(pairs))
+    end
 
-            if h < 0 || h > K - 1
-                continue
+    T_fused = TensorMap(zeros(T, K^2, K^2, K^2, K^2), W ⊗ W ← W ⊗ W)
+
+    for (split_tree, fuse_tree) in fusiontrees(T_fused)
+        q1 = Int(split_tree.uncoupled[1].charge)
+        q2 = Int(split_tree.uncoupled[2].charge)
+        q3 = Int(fuse_tree.uncoupled[1].charge)
+        q4 = Int(fuse_tree.uncoupled[2].charge)
+
+        block = T_fused[split_tree, fuse_tree]
+        # block has shape (mult(q1) × mult(q2)) × (mult(q3) × mult(q4))
+        # index as block[i1, i2, i3, i4] where each i is the multiplicity index
+
+        for a in max(0, q1):min(K - 1, q1 + K - 1)
+            B = a - q1;  (0 <= B <= K - 1) || continue
+            i1 = mult_index[q1][a]
+
+            for c in max(0, q2):min(K - 1, q2 + K - 1)
+                D = c - q2;  (0 <= D <= K - 1) || continue
+                i2 = mult_index[q2][c]
+
+                for e in max(0, q3):min(K - 1, q3 + K - 1)
+                    F = e - q3;  (0 <= F <= K - 1) || continue
+                    i3 = mult_index[q3][e]
+
+                    for g in max(0, q4):min(K - 1, q4 + K - 1)
+                        H = g - q4;  (0 <= H <= K - 1) || continue
+                        i4 = mult_index[q4][g]
+
+                        sum_power = a + B + c + D + e + F + g + H
+                        M = moments[sum_power + 2]
+                        (M == 0.0) && continue
+
+                        logdenom = 0.5 * (
+                            log(2) * sum_power +
+                                logfact[a + 1] + logfact[B + 1] + logfact[c + 1] + logfact[D + 1] +
+                                logfact[e + 1] + logfact[F + 1] + logfact[g + 1] + logfact[H + 1]
+                        )
+
+                        block[i1, i2, i3, i4] += 2π * M / exp(logdenom)
+                    end
+                end
             end
-
-            # total power
-            sum_power = a + b + c + d + e + f + g + h
-            n = 1 + sum_power
-            # quick skip if moment is zero
-            M = moments[n + 1]
-            if M == 0.0
-                continue
-            end
-
-            # denomenator via logfacts
-            logdenom = 0.5 * (
-                log(2) * sum_power +
-                    logfact[a + 1] + logfact[b + 1] + logfact[c + 1] + logfact[d + 1] + logfact[e + 1] + logfact[f + 1] + logfact[g + 1] + logfact[h + 1]
-            )
-            denom = exp(logdenom)
-
-            val = 2π * M / denom
-
-            # store into array (indices +1)
-            T_arr[a + 1, b + 1, c + 1, d + 1, e + 1, f + 1, g + 1, h + 1] = val
         end
     end
 
-    # Build U1 spaces
-    V1 = U1Space([U1Irrep(q) => 1 for q in 0:(K - 1)]...)
-    V2 = U1Space([U1Irrep(q) => 1 for q in 0:-1:(-K + 1)]...)
-    T_unfused = TensorMap(T_arr, V1 ⊗ V2 ⊗ V1 ⊗ V2 ← V1 ⊗ V2 ⊗ V1 ⊗ V2)
-
-    U = isometry(fuse(V1, V2), V1 ⊗ V2)
-    Udg = adjoint(U)
-
-    @tensor T_fused[-1 -2; -3 -4] := T_unfused[1 2 3 4; 5 6 7 8] * U[-1; 1 2] * U[-2; 3 4] * Udg[5 6; -3] * Udg[7 8; -4]
     return T_fused
 end
 

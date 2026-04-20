@@ -33,6 +33,7 @@ Many common TNR schemes have already been implemented:
 
 **2D honeycomb CTM methods**
 * [`c3vCTM_honeycomb`](@ref) (c3v symmetric CTM on the honeycomb lattice)
+* [`CTM_honeycomb`](@ref) (CTM on the honeycomb lattice)
 
 **Impurity Methods**
 * [`ImpurityTRG`](@ref)
@@ -86,7 +87,7 @@ TNRKit includes several common models out of the box.
 - Potts model in 2D: `classical_potts(S, q, β)`, where `S` can be `Trivial` or `ZNIrrep{q}` to specify the symmetry.
 - Potts model in 2D with impurities: `classical_potts_impurity(q, β)`.
 - Six Vertex model: `sixvertex(S, elt; a=1.0, b=1.0, c=1.0)` where `S` can be `Trivial`, `U1Irrep` or `CU1Irrep` to specify the symmetry and `elt` can be any number type (default is `Float64`).
-- Clock model: `classical_clock(S, q, β)` where `S` can be `Trivial` or `ZNIrrep{q}` to specify the symmetry.
+- Clock model: `classical_clock(S, q, β)` where `S` can be `Trivial`, `ZNIrrep{q}` or `DNIrrep{q}` to specify the symmetry.
 - XY model in 2D: `classical_XY(S, β, charge_trunc)` where `S` can be `U1Irrep` or `CU1Irrep` to specify the symmetry.
 - Real $\phi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
 - Real $\phi^4$ model with impurities: `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` can be `Trivial`.
