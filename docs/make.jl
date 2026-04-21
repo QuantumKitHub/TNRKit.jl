@@ -10,7 +10,7 @@ makedocs(;
     pages = [
         "Home" => "index.md"
         "Library" => "lib/lib.md"
-        "CFT Data" => "cft/cft.md"
+        "CFT Data" => "cft.md"
         "Finalizers" => "finalizers.md"
         "References" => "references.md"
     ],
