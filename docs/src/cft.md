@@ -15,15 +15,7 @@ CFTData(TA::TensorMap, TB::TensorMap; kwargs...) # 2x2 checkerboard unitcell
 
 The shapes we provide are:
 
-$[1, 1, 0]$
-
-$[\sqrt{2}, 2\sqrt{2}, 0]$
-
-$[1, 4, 1]$
-
-$[1, 8, 1]$
-
-$[\frac{4}{\sqrt{10}}, 2 \sqrt{10}, \frac{2}{\sqrt{10}}]$
+$[1, 1, 0]$, $[\sqrt{2}, 2\sqrt{2}, 0]$, $[1, 4, 1]$, $[1, 8, 1]$, $[\frac{4}{\sqrt{10}}, 2 \sqrt{10}, \frac{2}{\sqrt{10}}]$
 
 The last two of which require intermediate truncation steps, the parameters of which can be tuned by:
 ```julia
