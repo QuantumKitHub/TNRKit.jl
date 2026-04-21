@@ -98,8 +98,9 @@ function CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [
         )
         T = reduced_MPO(dl, ur, ul, dr, trunc)
         return spec(T, T, shape)
+    else
+        throw(ArgumentError("Shape $shape is not implemented."))
     end
-    return nothing
 end
 
 # Trivial diagonalisation of the transfer matrix. Currently the v and unitcell are not acessible from the outside.
@@ -192,8 +193,6 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
             end
         end
     )
-
-    conformal_data = Dict()
 
     norm_const_0 = spec_sector[one(I)][1]
     central_charge = 6 / pi / (Imτ - area / 4) * log(norm_const_0)
