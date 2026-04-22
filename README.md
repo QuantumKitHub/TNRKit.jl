@@ -1,5 +1,5 @@
-![TNRKit Logo](https://github.com/VictorVanthilt/TNRKit.jl/blob/master/docs/src/assets/logo-dark.svg#gh-dark-mode-only)
-![TNRKit Logo](https://github.com/VictorVanthilt/TNRKit.jl/blob/master/docs/src/assets/logo.svg#gh-light-mode-only)
+![TNRKit Logo](https://github.com/QuantumKitHub/TNRKit.jl/blob/master/docs/src/assets/logo-dark.svg#gh-dark-mode-only)
+![TNRKit Logo](https://github.com/QuantumKitHub/TNRKit.jl/blob/master/docs/src/assets/logo.svg#gh-light-mode-only)
 
 # TNRKit.jl
 | **Documentation** | **Build Status** | **Digital Object Identifyer** | **Coverage** |
@@ -7,19 +7,19 @@
 | [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![CI][ci-img]][ci-url] | [![DOI][doi-img]][doi-url] | [![Codecov][codecov-img]][codecov-url] |
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
-[docs-stable-url]: https://VictorVanthilt.github.io/TNRKit.jl/stable
+[docs-stable-url]: https://QuantumKitHub.github.io/TNRKit.jl/stable
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
-[docs-dev-url]: https://VictorVanthilt.github.io/TNRKit.jl/dev
+[docs-dev-url]: https://QuantumKitHub.github.io/TNRKit.jl/dev
 
-[ci-img]: https://github.com/VictorVanthilt/TNRKit.jl/actions/workflows/CI.yml/badge.svg
-[ci-url]: https://github.com/VictorVanthilt/TNRKit.jl/actions/workflows/CI.yml
+[ci-img]: https://github.com/QuantumKitHub/TNRKit.jl/actions/workflows/CI.yml/badge.svg
+[ci-url]: https://github.com/QuantumKitHub/TNRKit.jl/actions/workflows/CI.yml
 
 [doi-img]: https://zenodo.org/badge/DOI/10.5281/zenodo.16836269.svg
 [doi-url]: https://doi.org/10.5281/zenodo.16836269
 
-[codecov-img]: https://codecov.io/gh/VictorVanthilt/TNRKit.jl/graph/badge.svg?token=XEOJODNBF3
-[codecov-url]: https://codecov.io/gh/VictorVanthilt/TNRKit.jl
+[codecov-img]: https://codecov.io/gh/QuantumKitHub/TNRKit.jl/graph/badge.svg?token=XEOJODNBF3
+[codecov-url]: https://codecov.io/gh/QuantumKitHub/TNRKit.jl
 
 
 TNRKit.jl is a Julia package that aims to implement as many tensor network renormalization (TNR) schemes as possible.
