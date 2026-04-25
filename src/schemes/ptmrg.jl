@@ -41,13 +41,11 @@ function step!(scheme::PTMRG, trunc::MatrixAlgebraKit.TruncationStrategy)
     Ux, = _get_hotrg_xproj(scheme.h, scheme.C, trunc)
     scheme.C = _step_hotrg_y(scheme.h, scheme.C, Ux)
 
-    Ux, = _get_hotrg_xproj(scheme.T, scheme.v, trunc)
     scheme.v = _step_hotrg_y(scheme.T, scheme.v, Ux)
 
     Uy, = _get_hotrg_yproj(scheme.C, scheme.v, trunc)
     scheme.C = _step_hotrg_x(scheme.C, scheme.v, Uy)
 
-    Uy, = _get_hotrg_yproj(scheme.h, scheme.T, trunc)
     scheme.h = _step_hotrg_x(scheme.h, scheme.T, Uy)
     return scheme
 end
