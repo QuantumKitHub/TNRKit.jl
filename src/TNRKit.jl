@@ -26,6 +26,7 @@ include("schemes/hotrg.jl")
 include("schemes/hotrg3d.jl")
 include("schemes/atrg.jl")
 include("schemes/atrg3d.jl")
+include("schemes/ptmrg.jl")
 
 # CTM methods
 include("schemes/ctm/utility.jl")
@@ -62,6 +63,7 @@ export HOTRG
 export HOTRG_3D
 export ATRG
 export ATRG_3D
+export PTMRG
 
 export CTM
 export Sublattice_CTM
