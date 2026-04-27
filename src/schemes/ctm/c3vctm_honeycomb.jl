@@ -37,7 +37,7 @@ end
 
 function calculate_projectors(scheme, trunc)
     @tensor opt = true mat[χout Dout; χin Din] := scheme.L[χout DNW; χN] * scheme.C[χN χNE] * scheme.R[χNE DE; χin] *
-        scheme.T[DNW DE DC] * conj(scheme.T[Din DC Dout])
+        scheme.T[DNW DE DC] * conj(flip(scheme.T, 1)[Din Dout DC])
 
     D, W = eig_trunc(mat; trunc)
     return D, W
