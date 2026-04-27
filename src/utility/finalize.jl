@@ -13,6 +13,14 @@ function finalize!(scheme::BTRG)
     return n
 end
 
+function finalize!(scheme::PTMRG)
+    scheme.h /= norm(@tensor scheme.h[1 2; 2 1])
+    scheme.v /= norm(@tensor scheme.v[1 2; 2 1])
+    n = norm(@tensor scheme.C[1 2; 2 1])
+    scheme.C /= n
+    return n
+end
+
 # 2x2 unitcell finalize
 function finalize_two_by_two!(scheme::simple_scheme)
     n = norm(
