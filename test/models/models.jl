@@ -1,6 +1,7 @@
 using Test
 using TNRKit
 using TensorKit
+using TensorKitSectors
 
 println("--------------------")
 println(" Testing all models ")
