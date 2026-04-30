@@ -1,3 +1,7 @@
+using Test
+using TNRKit
+using TensorKit
+
 println("-----------------------")
 println(" Testing all entropies ")
 println("-----------------------")

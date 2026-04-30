@@ -1,3 +1,8 @@
+using Test
+using TNRKit
+using TensorKit
+using TensorKitSectors
+
 @testset "Q-system property of FunZN ∈ Rep[DN]" begin
     for N in 2:7
         FunZN, m = TNRKit.FunZN_Dihedral(N)

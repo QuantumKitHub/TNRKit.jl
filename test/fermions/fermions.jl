@@ -1,3 +1,7 @@
+using Test
+using TNRKit
+using TensorKit
+
 f_bench = -1.4515448845652446
 T = gross_neveu_start(0, 0, 0)
 

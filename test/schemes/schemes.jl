@@ -1,5 +1,8 @@
-# This tests every scheme in the library on the Z2 symmetric Ising model.
+using Test
+using TNRKit
+using TensorKit
 
+# This tests every scheme in the library on the Z2 symmetric Ising model.
 println("---------------------")
 println(" Testing all schemes ")
 println("---------------------")
