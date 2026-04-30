@@ -1,3 +1,4 @@
+using TNRKit
 using ParallelTestRunner
 
 testsuite = find_tests(@__DIR__)
