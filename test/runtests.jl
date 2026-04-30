@@ -5,5 +5,6 @@ using TensorKitSectors
 using QuadGK
 using ParallelTestRunner
 
-using ParallelTestRunner
-ParallelTestRunner.runtests()
+testsuite = find_tests(@__DIR__)
+args = parse_args(ARGS)
+ParallelTestRunner.runtests(TNRKit, args)
