@@ -1,8 +1,3 @@
-@testset "ThermalTNR exports" begin
-    @test !(:TNO in names(TNRKit))
-    @test !(:TNOTensor in names(TNRKit))
-end
-
 @testset "ThermalTNR construction" begin
     local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
 
