@@ -85,6 +85,10 @@ function ThermalTNR(A::AbstractMatrix{TT}) where {E, S, TT <: TNOTensor{E, S}}
     return ThermalTNR(TNO(A))
 end
 
+function ThermalTNR(A::TT; unitcell::Tuple{Int, Int} = (1, 1)) where {E, S, TT <: TNOTensor{E, S}}
+    return ThermalTNR(TNO(A; unitcell = unitcell))
+end
+
 const _TNO_NORTH_AXIS = 3
 const _TNO_EAST_AXIS = 4
 const _TNO_SOUTH_AXIS = 5
