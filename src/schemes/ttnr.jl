@@ -56,13 +56,13 @@ Base.copy(tno::TNO) = TNO(copy(tno.A))
     $(TYPEDEF)
 
 Minimal storage object for thermal tensor network renormalization on a square-lattice
-TNO.
+tensor-network-operator unit cell.
 
 ### Constructors
-    $(FUNCTIONNAME)(T::TNO)
+    $(FUNCTIONNAME)(A::AbstractMatrix{<:AbstractTensorMap})
 
 ### Running the algorithm
-    run!(::ThermalTNR, T::TNO, trunc::TruncationStrategy, criterion::stopcrit[
+    run!(::ThermalTNR, A::AbstractMatrix{<:AbstractTensorMap}, trunc::TruncationStrategy, criterion::stopcrit[
               , finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 ### Fields
@@ -73,12 +73,16 @@ $(TYPEDFIELDS)
 * [Ueda et al. (2025)](@cite ueda_2025)
 """
 mutable struct ThermalTNR{E, S} <: TNRScheme{E, S}
-    "Tensor network operator stored in the current TTNR layer."
+    "Internal tensor network operator stored in the current TTNR layer."
     T::TNO{E, S}
 
     function ThermalTNR(T::TT) where {E, S, TT <: TNO{E, S}}
         return new{E, S}(T)
     end
+end
+
+function ThermalTNR(A::AbstractMatrix{TT}) where {E, S, TT <: TNOTensor{E, S}}
+    return ThermalTNR(TNO(A))
 end
 
 const _TNO_NORTH_AXIS = 3
@@ -256,6 +260,12 @@ function step!(scheme::ThermalTNR, layer::TNO, trunc::TruncationStrategy)
     return scheme
 end
 
+function step!(
+        scheme::ThermalTNR, layer::AbstractMatrix{TT}, trunc::TruncationStrategy
+    ) where {E, S, TT <: TNOTensor{E, S}}
+    return step!(scheme, TNO(layer), trunc)
+end
+
 function step!(scheme::ThermalTNR, layer::ThermalTNR, trunc::TruncationStrategy)
     return step!(scheme, layer.T, trunc)
 end
@@ -297,13 +307,20 @@ function run!(
     return run!(scheme, layer.T, trscheme, criterion, finalizer; kwargs...)
 end
 
+function run!(
+        scheme::ThermalTNR, layer::AbstractMatrix{TT}, trscheme::TruncationStrategy,
+        criterion::stopcrit, finalizer::Finalizer{E}; kwargs...
+    ) where {E, S, TT <: TNOTensor{E, S}}
+    return run!(scheme, TNO(layer), trscheme, criterion, finalizer; kwargs...)
+end
+
 function run!(scheme::ThermalTNR, layer, trscheme, criterion; kwargs...)
     return run!(scheme, layer, trscheme, criterion, default_Finalizer; kwargs...)
 end
 
 function Base.show(io::IO, scheme::ThermalTNR)
     println(io, "ThermalTNR - Thermal Tensor Network Renormalization")
-    println(io, "  * T: $(summary(scheme.T))")
     println(io, "  * unit cell: $(size(scheme.T))")
+    println(io, "  * tensor: $(summary(scheme.T[1, 1]))")
     return nothing
 end

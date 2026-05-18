@@ -1,56 +1,45 @@
-@testset "TNO" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-
-    tno = TNO(local_tensor; unitcell = (2, 3))
-    @test size(tno) == (2, 3)
-    @test tno isa AbstractMatrix
-    @test all(tno[i, j] ≈ local_tensor for i in axes(tno, 1), j in axes(tno, 2))
-
-    other = copy(local_tensor)
-    tno[1, 2] = other
-    @test tno[1, 2] === other
-
-    unitcell = [copy(local_tensor) for _ in 1:2, _ in 1:2]
-    tno2 = TNO(unitcell)
-    @test size(tno2) == (2, 2)
-    @test tno2[2, 1] ≈ local_tensor
-
-    @test_throws ArgumentError TNO(local_tensor; unitcell = (0, 2))
-    @test_throws ArgumentError TNO(reshape(typeof(local_tensor)[], 0, 1))
-
-    tno_copy = copy(tno2)
-    @test tno_copy isa TNO
-    @test tno_copy !== tno2
-    @test tno_copy[1, 1] === tno2[1, 1]
-    @test tno_copy.A !== tno2.A
+@testset "ThermalTNR exports" begin
+    @test !(:TNO in names(TNRKit))
+    @test !(:TNOTensor in names(TNRKit))
 end
 
-@testset "TNO apply!" begin
+@testset "ThermalTNR construction" begin
     local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
 
-    top = TNO(local_tensor; unitcell = (2, 2))
-    bottom = TNO(local_tensor; unitcell = (2, 2))
-    merged = apply!(top, bottom, truncrank(8))
+    unitcell = [copy(local_tensor) for _ in 1:2, _ in 1:2]
+    scheme = ThermalTNR(unitcell)
 
-    @test size(merged) == (2, 2)
-    @test merged isa TNO
-    @test space(merged[1, 1], 1) == space(top[1, 1], 1)
-    @test space(merged[1, 1], 2) == space(bottom[1, 1], 2)
+    @test size(scheme.T) == (2, 2)
+    @test scheme.T[2, 1] ≈ local_tensor
+    @test !contains(sprint(show, scheme), "TNO")
+    @test_throws ArgumentError ThermalTNR(reshape(typeof(local_tensor)[], 0, 1))
+end
+
+@testset "ThermalTNR apply!" begin
+    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
+
+    top = [copy(local_tensor) for _ in 1:2, _ in 1:2]
+    bottom = [copy(local_tensor) for _ in 1:2, _ in 1:2]
+    scheme_top = ThermalTNR(top)
+    scheme_bottom = ThermalTNR(bottom)
+    merged = apply!(scheme_top, scheme_bottom, truncrank(8))
+
+    @test merged isa ThermalTNR
+    @test size(merged.T) == (2, 2)
+    @test space(merged.T[1, 1], 1) == space(top[1, 1], 1)
+    @test space(merged.T[1, 1], 2) == space(bottom[1, 1], 2)
 
     bad_tensor = randn(ℂ^2 ⊗ (ℂ^4)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-    @test_throws ArgumentError apply!(TNO(bad_tensor; unitcell = (2, 2)), bottom, truncrank(8))
-
-    scheme_top = ThermalTNR(TNO(local_tensor; unitcell = (1, 1)))
-    scheme_bottom = ThermalTNR(TNO(local_tensor; unitcell = (1, 1)))
-    @test apply!(scheme_top, scheme_bottom, truncrank(8)) isa ThermalTNR
+    @test_throws ArgumentError apply!(
+        ThermalTNR([bad_tensor;;]), ThermalTNR([local_tensor;;]), truncrank(8)
+    )
 end
 
 @testset "ThermalTNR finalize!" begin
     local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
 
 
-    tno = TNO([copy(local_tensor) for _ in 1:2, _ in 1:2])
-    scheme = ThermalTNR(tno)
+    scheme = ThermalTNR([copy(local_tensor) for _ in 1:2, _ in 1:2])
     n = finalize!(scheme)
 
     @test isfinite(n)
@@ -62,8 +51,8 @@ end
 @testset "ThermalTNR run!" begin
     local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
 
-    scheme = ThermalTNR(TNO(local_tensor; unitcell = (1, 1)))
-    layer = TNO(local_tensor; unitcell = (1, 1))
+    scheme = ThermalTNR([copy(local_tensor);;])
+    layer = [copy(local_tensor);;]
     data = run!(scheme, layer, truncrank(8), maxiter(1))
 
     @test data isa Vector{Float64}
