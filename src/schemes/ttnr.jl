@@ -164,15 +164,6 @@ function QR_two_pepo_right(O1::TNOTensor, O2::TNOTensor, ind::Int)
     return R
 end
 
-function QR_two_pepo(O1::TNOTensor, O2::TNOTensor, ind::Int; side = :left)
-    if side == :left
-        return QR_two_pepo_left(O1, O2, ind)
-    elseif side == :right
-        return QR_two_pepo_right(O1, O2, ind)
-    else
-        throw(ArgumentError("side should be :left or :right"))
-    end
-end
 
 function R1R2(
         A1::TNOTensor, A2::TNOTensor, A3::TNOTensor, A4::TNOTensor,
