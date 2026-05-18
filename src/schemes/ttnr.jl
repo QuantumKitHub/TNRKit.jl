@@ -322,6 +322,11 @@ function run!(scheme::ThermalTNR, layer, trscheme, criterion; kwargs...)
     return run!(scheme, layer, trscheme, criterion, default_Finalizer; kwargs...)
 end
 
+function run!(scheme::ThermalTNR, trscheme::TruncationStrategy, criterion::stopcrit; kwargs...)
+    scheme_original = copy(scheme)
+    return run!(scheme, scheme_original, trscheme, criterion; kwargs...)
+end
+
 function Base.show(io::IO, scheme::ThermalTNR)
     println(io, "ThermalTNR - Thermal Tensor Network Renormalization")
     println(io, "  * unit cell: $(size(scheme.T))")
