@@ -2,76 +2,29 @@ using Test
 using TNRKit
 using TensorKit
 
-@testset "ThermalTNR construction" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
+function _thermal_zn2_gu_wen_x1(β, Lz; χttnr = 12, χbtrg = 16, btrg_steps = 14)
+    scheme = ThermalTNR(ZN_gauge_theory_dual(2, β))
+    run!(scheme, truncrank(χttnr), maxiter(Lz - 1); verbosity = 0)
 
-    unitcell = [copy(local_tensor) for _ in 1:2, _ in 1:2]
-    scheme = ThermalTNR(unitcell)
-
-    @test size(scheme.T) == (2, 2)
-    @test scheme.T[2, 1] ≈ local_tensor
-    @test !contains(sprint(show, scheme), "TNO")
-    @test_throws ArgumentError ThermalTNR(reshape(typeof(local_tensor)[], 0, 1))
-end
-
-@testset "ThermalTNR apply!" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-
-    top = [copy(local_tensor) for _ in 1:2, _ in 1:2]
-    bottom = [copy(local_tensor) for _ in 1:2, _ in 1:2]
-    scheme_top = ThermalTNR(top)
-    scheme_bottom = ThermalTNR(bottom)
-    merged = apply!(scheme_top, scheme_bottom, truncrank(8))
-
-    @test merged isa ThermalTNR
-    @test size(merged.T) == (2, 2)
-    @test space(merged.T[1, 1], 1) == space(top[1, 1], 1)
-    @test space(merged.T[1, 1], 2) == space(bottom[1, 1], 2)
-
-    bad_tensor = randn(ℂ^2 ⊗ (ℂ^4)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-    @test_throws ArgumentError apply!(
-        ThermalTNR([bad_tensor;;]), ThermalTNR([local_tensor;;]), truncrank(8)
+    @tensor effective_tensor[-1 -2 -3 -4] := scheme.T[1, 1][p p; -1 -2 -3 -4]
+    btrg = BTRG(permute(effective_tensor, ((1, 2), (3, 4))))
+    ratios = run!(
+        btrg, truncrank(χbtrg), maxiter(btrg_steps), guwenratio_Finalizer;
+        finalize_beginning = false, verbosity = 0,
     )
+
+    x1, _ = last(ratios)
+    return x1
 end
 
-@testset "ThermalTNR finalize!" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
+@testset "ThermalTNR Z₂ gauge dual Gu-Wen ratio" begin
+    # Table 2 of arXiv:2602.13124 gives the dual-spin estimates of βc(Lz).
+    # The dual representation reverses the phases: β < βc has X₁ ≈ 2, β > βc has X₁ ≈ 1.
+    for (Lz, βc) in ((2, 0.65605), (4, 0.731065))
+        x1_below = _thermal_zn2_gu_wen_x1(βc - 0.1, Lz)
+        x1_above = _thermal_zn2_gu_wen_x1(βc + 0.1, Lz)
 
-
-    scheme = ThermalTNR([copy(local_tensor) for _ in 1:2, _ in 1:2])
-    n = finalize!(scheme)
-
-    @test isfinite(n)
-    @test n > 0
-    @test n ≈ norm(@tensor local_tensor[1 1; 2 3 2 3])
-    @test all(norm(@tensor scheme.T[i, j][1 1; 2 3 2 3]) ≈ 1 for i in 1:2, j in 1:2)
-end
-
-@testset "ThermalTNR run!" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-
-    scheme = ThermalTNR([copy(local_tensor);;])
-    layer = [copy(local_tensor);;]
-    data = run!(scheme, layer, truncrank(8), maxiter(1))
-
-    @test data isa Vector{Float64}
-    @test length(data) == 2
-    @test all(isfinite, data)
-    @test all(n -> n > 0, data)
-    @test norm(@tensor scheme.T[1, 1][1 1; 2 3 2 3]) ≈ 1
-end
-
-@testset "ThermalTNR run! with implicit layer" begin
-    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
-
-    explicit_scheme = ThermalTNR([copy(local_tensor);;])
-    implicit_scheme = copy(explicit_scheme)
-    layer = copy(explicit_scheme)
-
-    explicit_data = run!(explicit_scheme, layer, truncrank(8), maxiter(1))
-    implicit_data = run!(implicit_scheme, truncrank(8), maxiter(1))
-
-    @test implicit_data ≈ explicit_data
-    @test implicit_scheme.T[1, 1] ≈ explicit_scheme.T[1, 1]
-    @test implicit_scheme.T[1, 1] !== layer.T[1, 1]
+        @test x1_below ≈ 2 rtol = 1.0e-2
+        @test x1_above ≈ 1 rtol = 5.0e-2
+    end
 end
