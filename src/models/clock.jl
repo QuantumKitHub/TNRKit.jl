@@ -1,4 +1,4 @@
-function clock_tensor(q::Int, β::Real; T::Type{<:Number}=Float64)
+function clock_tensor(q::Int, β::Real; T::Type{<:Number} = Float64)
     V = ℂ^q
     A_clock = zeros(T, V ⊗ V ← V ⊗ V)
     clock(i, j) = -cos(2π / q * (i - j))
@@ -29,35 +29,35 @@ end
 function classical_clock(::Type{Trivial}, q::Int, β::Real; kwargs...)
     return clock_tensor(q, β; kwargs...)
 end
-function classical_clock(::Type{ZNIrrep{N}}, q::Int, β::Real; T::Type{<:Number}=Float64) where {N}
+function classical_clock(::Type{ZNIrrep{N}}, q::Int, β::Real; T::Type{<:Number} = Float64) where {N}
     @assert N == q "number of irreps must match the number of states"
-    A = classical_clock(Trivial, q, β; T=T)
+    A = classical_clock(Trivial, q, β; T = T)
 
     # Construct the Fourier matrix for the clock model
     Udat = zeros(ComplexF64, q, q)
-    for i in 0:(q-1)
-        for j in 0:(q-1)
-            Udat[i+1, j+1] = cispi(2 / q * i * j) / sqrt(q)
+    for i in 0:(q - 1)
+        for j in 0:(q - 1)
+            Udat[i + 1, j + 1] = cispi(2 / q * i * j) / sqrt(q)
         end
     end
     U = TensorMap(Udat, ℂ^q ← ℂ^q)
 
     @tensor Anew[-1 -2; -3 -4] := A[1 2; 3 4] * U[4; -4] * conj(U[1; -1]) * U[3; -3] * conj(U[2; -2])
-    V = ZNSpace{q}(i => 1 for i in 0:(q-1))
+    V = ZNSpace{q}(i => 1 for i in 0:(q - 1))
     t = TensorMap(convert(Array, Anew), V ⊗ V ← V ⊗ V)
     return T <: Real ? real(t) : t
 end
 
-function classical_clock(::Type{DNIrrep{N}}, q::Int, β::Real; T::Type{<:Number}=Float64) where {N}
+function classical_clock(::Type{DNIrrep{N}}, q::Int, β::Real; T::Type{<:Number} = Float64) where {N}
     @assert N == q "number of irreps must match the number of states"
 
-    FunZN, m = FunZN_Dihedral(q; T=T)
+    FunZN, m = FunZN_Dihedral(q; T = T)
 
     bond = zeros(T, FunZN ← FunZN)
 
     for (s, f) in fusiontrees(bond)
         charge = f.coupled.j
-        bond[s, f] .= sum(cos(2pi / q * spin * charge) * exp(β * cos(2pi / q * spin)) for spin in 0:(q-1))
+        bond[s, f] .= sum(cos(2pi / q * spin * charge) * exp(β * cos(2pi / q * spin)) for spin in 0:(q - 1))
     end
 
     t = algebraic_initialization(m, bond)
@@ -65,7 +65,7 @@ function classical_clock(::Type{DNIrrep{N}}, q::Int, β::Real; T::Type{<:Number}
     return t
 end
 
-function FunZN_Dihedral(N::Int; T::Type{<:Number}=Float64)
+function FunZN_Dihedral(N::Int; T::Type{<:Number} = Float64)
     n = N ÷ 2
 
     # Define which irreps are 1D irrep
