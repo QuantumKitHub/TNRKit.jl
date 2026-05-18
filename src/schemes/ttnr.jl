@@ -291,7 +291,7 @@ function run!(
 end
 
 
-function run!(scheme::ThermalTNR, layer, trscheme, criterion; kwargs...)
+function run!(scheme::ThermalTNR, layer::ThermalTNR, trscheme::TruncationStrategy, criterion::stopcrit; kwargs...)
     return run!(scheme, layer, trscheme, criterion, default_Finalizer; kwargs...)
 end
 

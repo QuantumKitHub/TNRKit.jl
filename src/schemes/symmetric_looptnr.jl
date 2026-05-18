@@ -180,7 +180,7 @@ function combine_4S(S)
 end
 
 ########## Main funcitons ##########
-function step!(scheme, trunc, oneloop)
+function step!(scheme::SLoopTNR, trunc::TruncationStrategy, oneloop)
     scheme.T = entanglement_filtering(scheme.T)
     if oneloop == true
         S = ef_oneloop(scheme.T, trunc)
