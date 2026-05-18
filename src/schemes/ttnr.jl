@@ -50,7 +50,7 @@ Base.size(tno::TNO) = size(tno.A)
 Base.axes(tno::TNO) = axes(tno.A)
 Base.getindex(tno::TNO, i::Int, j::Int) = tno.A[i, j]
 Base.setindex!(tno::TNO, value, i::Int, j::Int) = setindex!(tno.A, value, i, j)
-Base.copy(tno::TNO) = TNO(copy(tno.A))
+Base.copy(tno::TNO) = TNO(copy.(tno.A))
 
 """
     $(TYPEDEF)
@@ -88,6 +88,8 @@ end
 function ThermalTNR(A::TT; unitcell::Tuple{Int, Int} = (1, 1)) where {E, S, TT <: TNOTensor{E, S}}
     return ThermalTNR(TNO(A; unitcell = unitcell))
 end
+
+Base.copy(scheme::ThermalTNR) = ThermalTNR(copy(scheme.T))
 
 const _TNO_NORTH_AXIS = 3
 const _TNO_EAST_AXIS = 4

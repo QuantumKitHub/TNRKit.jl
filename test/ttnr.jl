@@ -1,3 +1,7 @@
+using Test
+using TNRKit
+using TensorKit
+
 @testset "ThermalTNR construction" begin
     local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
 
@@ -55,4 +59,19 @@ end
     @test all(isfinite, data)
     @test all(n -> n > 0, data)
     @test norm(@tensor scheme.T[1, 1][1 1; 2 3 2 3]) ≈ 1
+end
+
+@testset "ThermalTNR run! with implicit layer" begin
+    local_tensor = randn(ℂ^2 ⊗ (ℂ^2)' ← ℂ^2 ⊗ ℂ^2 ⊗ (ℂ^2)' ⊗ (ℂ^2)')
+
+    explicit_scheme = ThermalTNR([copy(local_tensor);;])
+    implicit_scheme = copy(explicit_scheme)
+    layer = copy(explicit_scheme)
+
+    explicit_data = run!(explicit_scheme, layer, truncrank(8), maxiter(1))
+    implicit_data = run!(implicit_scheme, truncrank(8), maxiter(1))
+
+    @test implicit_data ≈ explicit_data
+    @test implicit_scheme.T[1, 1] ≈ explicit_scheme.T[1, 1]
+    @test implicit_scheme.T[1, 1] !== layer.T[1, 1]
 end
