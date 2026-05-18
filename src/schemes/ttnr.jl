@@ -248,8 +248,8 @@ function apply!(top::TNO, bottom::TNO, trunc::TruncationStrategy)
 end
 
 
-function step!(scheme::ThermalTNR, layer::ThermalTNR, trunc::TruncationStrategy)
-    scheme.T = apply!(scheme.T, layer.T, trunc)
+function step!(scheme::ThermalTNR, layer::TNO, trunc::TruncationStrategy)
+    scheme.T = apply!(scheme.T, layer, trunc)
     return scheme
 end
 
