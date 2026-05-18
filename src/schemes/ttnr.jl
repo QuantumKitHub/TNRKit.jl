@@ -247,24 +247,10 @@ function apply!(top::TNO, bottom::TNO, trunc::TruncationStrategy)
     return TNO(merged)
 end
 
-function apply!(top::ThermalTNR, bottom::ThermalTNR, trunc::TruncationStrategy)
-    top.T = apply!(top.T, bottom.T, trunc)
-    return top
-end
-
-function step!(scheme::ThermalTNR, layer::TNO, trunc::TruncationStrategy)
-    scheme.T = apply!(scheme.T, layer, trunc)
-    return scheme
-end
-
-function step!(
-        scheme::ThermalTNR, layer::AbstractMatrix{TT}, trunc::TruncationStrategy
-    ) where {E, S, TT <: TNOTensor{E, S}}
-    return step!(scheme, TNO(layer), trunc)
-end
 
 function step!(scheme::ThermalTNR, layer::ThermalTNR, trunc::TruncationStrategy)
-    return step!(scheme, layer.T, trunc)
+    scheme.T = apply!(scheme.T, layer.T, trunc)
+    return scheme
 end
 
 function run!(
@@ -304,12 +290,6 @@ function run!(
     return run!(scheme, layer.T, trscheme, criterion, finalizer; kwargs...)
 end
 
-function run!(
-        scheme::ThermalTNR, layer::AbstractMatrix{TT}, trscheme::TruncationStrategy,
-        criterion::stopcrit, finalizer::Finalizer{E}; kwargs...
-    ) where {E, S, TT <: TNOTensor{E, S}}
-    return run!(scheme, TNO(layer), trscheme, criterion, finalizer; kwargs...)
-end
 
 function run!(scheme::ThermalTNR, layer, trscheme, criterion; kwargs...)
     return run!(scheme, layer, trscheme, criterion, default_Finalizer; kwargs...)
