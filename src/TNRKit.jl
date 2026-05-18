@@ -107,7 +107,7 @@ include("models/potts.jl")
 export classical_potts, potts_βc, classical_potts_impurity
 
 include("models/clock.jl")
-export classical_clock
+export classical_clock, ZN_gauge_theory_dual
 
 include("models/XY.jl")
 export classical_XY, XY_βc
