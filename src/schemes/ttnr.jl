@@ -59,7 +59,7 @@ Thermal Tensor Network Renormalization on a square-lattice
 
 ### Constructors
     $(FUNCTIONNAME)(A::AbstractMatrix{<:AbstractTensorMap})
-    $(FUNCTIONNAME)(T)
+    $(FUNCTIONNAME)(T::AbstractTensorMap{E, S, 2, 4})
 
 ### Running the algorithm
     run!(::ThermalTNR, A::AbstractMatrix{<:AbstractTensorMap}, trunc::TruncationStrategy, criterion::stopcrit[
