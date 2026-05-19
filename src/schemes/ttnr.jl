@@ -55,11 +55,11 @@ Base.copy(tno::TNO) = TNO(copy.(tno.A))
 """
     $(TYPEDEF)
 
-Minimal storage object for thermal tensor network renormalization on a square-lattice
-tensor-network-operator unit cell.
+Thermal Tensor Network Renormalization on a square-lattice
 
 ### Constructors
     $(FUNCTIONNAME)(A::AbstractMatrix{<:AbstractTensorMap})
+    $(FUNCTIONNAME)(T)
 
 ### Running the algorithm
     run!(::ThermalTNR, A::AbstractMatrix{<:AbstractTensorMap}, trunc::TruncationStrategy, criterion::stopcrit[
