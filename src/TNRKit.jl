@@ -130,7 +130,8 @@ export ground_state_degeneracy, gu_wen_ratio
 
 include("utility/finalize.jl")
 export Finalizer, two_by_two_Finalizer, finalize!, finalize_two_by_two!, finalize_cftdata!, finalize_central_charge!,
-    finalize_groundstatedegeneracy!, CFT_Finalizer, GSDegeneracy_Finalizer, guwenratio_Finalizer
+    finalize_groundstatedegeneracy!, CFT_Finalizer, GSDegeneracy_Finalizer, guwenratio_Finalizer,
+    CFT_Finalize!, cft_finalizer
 
 include("utility/cdl.jl")
 export cdl_tensor

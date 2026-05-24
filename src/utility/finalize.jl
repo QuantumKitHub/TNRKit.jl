@@ -140,7 +140,7 @@ function finalize_cftdata!(scheme::TNRScheme)
     return CFTData(scheme)
 end
 
-CFT_Finalizer = Finalizer(finalize_cftdata!, CFTData)
+const CFT_Finalizer = Finalizer(finalize_cftdata!, CFTData)
 
 function finalize_cftdata!(scheme::SLoopTNR) # TODO: remove this
     tr_norm = trnorm_2x2(scheme.T)
@@ -154,8 +154,7 @@ function finalize_cftdata!(scheme::SLoopTNR) # TODO: remove this
     return data
 end
 
-# TODO: add Finalizers for CFT and central charge
-two_by_two_Finalizer = Finalizer(finalize_two_by_two!, Float64)
+const two_by_two_Finalizer = Finalizer(finalize_two_by_two!, Float64)
 
 # Finalizer for ground state degeneracy
 function finalize_groundstatedegeneracy!(scheme::TNRScheme)
@@ -173,7 +172,7 @@ function finalize_groundstatedegeneracy!(scheme::LoopTNR)
     return ground_state_degeneracy(scheme; unitcell = 2)
 end
 
-GSDegeneracy_Finalizer = Finalizer(finalize_groundstatedegeneracy!, Float64)
+const GSDegeneracy_Finalizer = Finalizer(finalize_groundstatedegeneracy!, Float64)
 
 #Finalizer for Gu-Wen ratio
 function finalize_gu_wen_ratio!(scheme::TNRScheme)
@@ -192,3 +191,21 @@ function finalize_gu_wen_ratio!(scheme::LoopTNR)
 end
 
 const guwenratio_Finalizer = Finalizer(finalize_gu_wen_ratio!, Tuple{Float64, Float64})
+
+
+function CFT_Finalize!(scheme::TNRScheme; shape = [sqrt(2), 2 * sqrt(2), 0])
+    finalize!(scheme)
+    return CFTData(scheme; shape = shape)
+end
+
+function CFT_Finalize!(scheme::BTRG; shape = [sqrt(2), 2 * sqrt(2), 0])
+    finalize!(scheme)
+    return CFTData(scheme; shape = shape)
+end
+
+function CFT_Finalize!(scheme::LoopTNR; shape = [sqrt(2), 2 * sqrt(2), 0])
+    finalize!(scheme)
+    return CFTData(scheme; shape = shape)
+end
+
+const cft_finalizer = Finalizer(CFT_Finalize!, CFTData)

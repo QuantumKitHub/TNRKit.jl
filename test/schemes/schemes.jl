@@ -12,11 +12,6 @@ T_3D = classical_ising_3D()
 # from Fig. 5 of Physical Review B 102, 054432 (2020)
 const f_benchmark3D = -3.507
 
-function cft_finalize!(scheme)
-    finalize!(scheme)
-    return CFTData(scheme)
-end
-
 # TRG
 @testset "TRG - Ising Model" begin
     @info "TRG ising free energy"
@@ -27,9 +22,9 @@ end
 
     @info "TRG ising CFT data"
     scheme = TRG(T)
-    run!(scheme, truncrank(24), maxiter(10))
+    cft_data = run!(scheme, truncrank(16), maxiter(10), cft_finalizer)
 
-    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(last(cft_data).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -66,9 +61,9 @@ end
 
     @info "BTRG ising CFT data"
     scheme = BTRG(T)
-    run!(scheme, truncrank(24), maxiter(10))
+    cft_data = run!(scheme, truncrank(16), maxiter(10), cft_finalizer)
 
-    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(last(cft_data).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 3.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
@@ -103,9 +98,9 @@ end
 
     @info "HOTRG ising CFT data"
     scheme = HOTRG(T)
-    run!(scheme, truncrank(16), maxiter(4))
+    cft_data = run!(scheme, truncrank(16), maxiter(4), cft_finalizer)
 
-    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(last(cft_data).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 6.0e-4
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
@@ -140,9 +135,9 @@ end
 
     @info "ATRG ising CFT data"
     scheme = ATRG(T)
-    run!(scheme, truncrank(24), maxiter(3))
+    cft_data = run!(scheme, truncrank(16), maxiter(3), cft_finalizer)
 
-    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = sort(last(cft_data).scaling_dimensions[2:end]; by = abs) .|> real
 
     @test cft[1] ≈ ising_cft_exact[1] rtol = 1.0e-2
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
