@@ -96,6 +96,34 @@ julia> abs((f - f_onsager) / f_onsager)
 
 Pretty impressive for a calculation that takes about 0.3s on a laptop.
 
+## Computing CFT Data
+
+TNRKit can extract conformal field theory (CFT) scaling dimensions directly from the renormalized tensor via the built-in `cft_finalizer`. Passing it to `run!` instructs the algorithm to compute a `CFTData` object after every coarse-graining step, accumulating them into the returned array.
+
+```julia
+using TNRKit, TensorKit
+
+T = classical_ising(ising_βc)
+scheme = BTRG(T)
+cft_data = run!(scheme, truncrank(16), maxiter(25), cft_finalizer)
+
+cft = last(cft_data)                          # CFTData at the final step
+dims = sort(cft.scaling_dimensions[2:end]; by = abs) .|> real
+```
+
+The shape of the torus used for spectrum extraction defaults to `[√2, 2√2, 0]` (a rectangular torus well-suited to most TNR schemes). You can also construct a custom finalizer if a different shape is needed:
+
+```julia
+using TNRKit, TensorKit
+
+my_finalizer = Finalizer(
+    scheme -> (finalize!(scheme); CFTData(scheme; shape = [1, 1, 0])),
+    CFTData
+)
+
+cft_data = run!(scheme, truncrank(16), maxiter(25), my_finalizer)
+```
+
 ## Verbosity
 
 There are 3 levels of verbosity implemented in TNRKit:
