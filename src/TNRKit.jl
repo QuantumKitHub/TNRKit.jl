@@ -93,7 +93,7 @@ include("models/ising.jl")
 include("models/ising_triangular.jl")
 include("models/ising_honeycomb.jl")
 export classical_ising, ising_βc, f_onsager, ising_cft_exact,
-    ising_βc_3D, classical_ising_3D, classical_ising_impurity,
+    ising_βc_3D, classical_ising_3D, ising_3D_free_energy_htse, classical_ising_impurity,
     classical_ising_triangular, ising_βc_triangular, f_onsager_triangular,
     classical_ising_honeycomb, ising_βc_honeycomb, f_onsager_honeycomb
 

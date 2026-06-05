@@ -7,6 +7,75 @@ const ising_cft_exact = [
 ]
 const ising_βc_3D = 1.0 / 4.51152469
 
+# HTSE coefficients for the 3D Ising free energy (hep-lat/9312048, Table 2).
+const ISING_3D_HTSE_COEFFS = [
+    0,              # k=0
+    0,              # k=1
+    0,              # k=2
+    0,              # k=3
+    3,              # k=4
+    0,              # k=5
+    22,             # k=6
+    0,              # k=7
+    375 // 2,         # k=8
+    0,              # k=9
+    1980,           # k=10
+    0,              # k=11
+    24044,          # k=12
+    0,              # k=13
+    319170,         # k=14
+    0,              # k=15
+    18059031 // 4,    # k=16
+    0,              # k=17
+    201010408 // 3,   # k=18
+    0,              # k=19
+    5162283633 // 5,  # k=20
+    0,              # k=21
+    16397040750,    # k=22
+    0,              # k=23
+    266958797382,   # k=24
+]
+
+"""
+    ising_3D_free_energy_htse(β::Real; J::Real=1.0, max_order::Int=24)
+
+Compute the free energy per spin for the 3D Ising model on a simple cubic lattice
+using the high-temperature series expansion (HTSE) to 24th order.
+
+The expansion is taken from Bhanot, Creutz, Glässner, Schilling (hep-lat/9312048),
+Table 2, with the formula:
+
+    f(β) = -(1/β) * log(2*cosh(β*J)³) - (1/β) * Σ_{k} f_k * tanh(β*J)^k
+
+# Arguments
+- `β`: Inverse temperature.
+- `J`: Coupling constant (default: 1.0).
+- `max_order`: Maximum order of the series expansion (default: 24, max: 24).
+
+# Examples
+```julia
+julia> ising_3D_free_energy_htse(ising_βc_3D)
+-3.5083582548883747
+```
+"""
+function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
+    K = β * J
+    t = tanh(K)
+    f = -log(2 * cosh(K)^3) / β
+    series = zero(Float64)
+    t_pow = one(Float64)
+    kmax = min(max_order, length(ISING_3D_HTSE_COEFFS) - 1)
+    for k in 0:kmax
+        coeff = ISING_3D_HTSE_COEFFS[k + 1]
+        if !iszero(coeff)
+            series += Float64(coeff) * t_pow
+        end
+        t_pow *= t
+    end
+    f -= series / β
+    return f
+end
+
 function ising_bond_tensor(β::Real, T::Type{<:Number})
     x = cosh(β)
     y = sinh(β)
