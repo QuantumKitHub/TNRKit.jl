@@ -9,31 +9,8 @@ const ising_βc_3D = 1.0 / 4.51152469
 
 # HTSE coefficients for the 3D Ising free energy (hep-lat/9312048, Table 2).
 const ISING_3D_HTSE_COEFFS = [
-    0,              # k=0
-    0,              # k=1
-    0,              # k=2
-    0,              # k=3
-    3,              # k=4
-    0,              # k=5
-    22,             # k=6
-    0,              # k=7
-    375 // 2,         # k=8
-    0,              # k=9
-    1980,           # k=10
-    0,              # k=11
-    24044,          # k=12
-    0,              # k=13
-    319170,         # k=14
-    0,              # k=15
-    18059031 // 4,    # k=16
-    0,              # k=17
-    201010408 // 3,   # k=18
-    0,              # k=19
-    5162283633 // 5,  # k=20
-    0,              # k=21
-    16397040750,    # k=22
-    0,              # k=23
-    266958797382,   # k=24
+    0, 0, 0, 0, 3, 0, 22, 0, 375 // 2, 0, 1980, 0, 24044, 0, 319170, 0,
+    18059031 // 4, 0, 201010408 // 3, 0, 5162283633 // 5, 0, 16397040750, 0, 266958797382,
 ]
 
 """
@@ -59,13 +36,13 @@ julia> ising_3D_free_energy_htse(ising_βc_3D)
 ```
 """
 function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
+    max_order <= 24 || error("3D Ising HTSE is only up to the 24th order.")
     K = β * J
     t = tanh(K)
     f = -log(2 * cosh(K)^3) / β
     series = zero(Float64)
     t_pow = one(Float64)
-    kmax = min(max_order, length(ISING_3D_HTSE_COEFFS) - 1)
-    for k in 0:kmax
+    for k in 0:max_order
         coeff = ISING_3D_HTSE_COEFFS[k + 1]
         if !iszero(coeff)
             series += Float64(coeff) * t_pow
