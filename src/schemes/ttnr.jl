@@ -18,11 +18,11 @@ The entries are local operator tensors with two physical indices and four virtua
 indices. The container behaves like an `AbstractMatrix`, so it supports `size`,
 `axes`, indexing and iteration.
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(A::AbstractMatrix{<:TNOTensor})
     $(FUNCTIONNAME)(A::TNOTensor; unitcell=(1, 1))
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 """
@@ -57,19 +57,19 @@ Base.copy(tno::TNO) = TNO(copy.(tno.A))
 
 Thermal Tensor Network Renormalization on a square-lattice
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(A::AbstractMatrix{<:AbstractTensorMap})
     $(FUNCTIONNAME)(T::AbstractTensorMap{E, S, 2, 4})
 
-### Running the algorithm
+# Running the algorithm
     run!(::ThermalTNR, A::AbstractMatrix{<:AbstractTensorMap}, trunc::TruncationStrategy, criterion::stopcrit[
               , finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Ueda et al. (2025)](@cite ueda_2025)
 """
 mutable struct ThermalTNR{E, S} <: TNRScheme{E, S}

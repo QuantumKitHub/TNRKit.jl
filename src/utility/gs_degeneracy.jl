@@ -96,7 +96,7 @@ $(SIGNATURES)
 Calculates the Gu-Wen ratio X1 and X2 from the fixed-point tensor of a TNRScheme.
 The Gu-Wen ratios are related to the Ground state Degeneracy and the the scaling dimensions. See references.
 
-### References
+# References
 * [Zheng-Cheng Gu & Xiao-Gang Wen. PhysRevB.80.155131](@cite gu2009)
 * [Satoshi Morita et al. arxiv:2512.03395](@cite morita2025)
 """

@@ -12,7 +12,7 @@ for the classical Ising model with a given inverse temperature `β`.
 Compatible with no symmetry or with explicit ℤ₂ symmetry on each of its spaces.
 Defaults to ℤ₂ symmetry and inverse temperature `ising_βc_triangular` if the symmetry type and inverse temperature are not provided.
 
-### Examples
+# Examples
 ```julia
     classical_ising_triangular() # Default ℤ₂ symmetry, inverse temperature is `ising_βc_triangular`
     classical_ising_triangular(Trivial, 0.5) # Custom inverse temperature wihout symmetry.

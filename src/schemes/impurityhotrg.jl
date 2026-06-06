@@ -3,10 +3,10 @@ $(TYPEDEF)
 
 Single impurity method for Higher-Order Tensor Renormalization Group (for 2nd order)
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T, T_imp_order1_1, T_imp_order1_2, T_imp_order2)
 
-### Running the algorithm
+# Running the algorithm
     run!(::ImpurityHOTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityHOTRG_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of 2
@@ -16,11 +16,11 @@ Each step rescales the lattice by a (linear) factor of 2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Morita et al 10.1016/j.cpc.2018.10.014 (2018)](@cite morita2019)
 """
 mutable struct ImpurityHOTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}} <: TNRScheme{E, S}

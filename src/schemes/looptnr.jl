@@ -3,12 +3,12 @@ $(TYPEDEF)
 
 Loop Optimization for Tensor Network Renormalization
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(TA, TB)
     $(FUNCTIONNAME)(unitcell_2x2::Matrix{T})
 
-### Running the algorithm
+# Running the algorithm
     run!(::LoopTNR, trunc::TruncationStrategy, criterion::stopcrit, parameters::LoopParameters, finalizer::Finalizer[,
               entanglement_criterion::stopcrit, finalize_beginning=true, verbosity=1])
     
@@ -16,17 +16,17 @@ Loop Optimization for Tensor Network Renormalization
 
     run!(::LoopTNR, trscheme::TruncationStrategy, criterion::stopcrit[finalize_beginning=true, verbosity=1])
 
-### LoopParameters
+# LoopParameters
 See also: [`LoopParameters`](@ref)
 This stuct is used to set all internal parameters in LoopTNR.
 It can also be used to control whether Krylov methods are used (default: false)
 And whether nuclear norm regularization is used (default: false)
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Yang et. al. Phys. Rev. Letters 118 (2017)](@cite yang2017)
 * [Homma et. al. Phys. Rev. Res. 6 (2024)](@cite homma2024a)
 
@@ -53,7 +53,7 @@ Parameters used during LoopTNR.
 This struct allows the user to control how the linear problem is solved.
 It also allows the user to turn on nuclear norm regularization.
 
-### Fields
+# Fields
 
     $(TYPEDFIELDS)
 """

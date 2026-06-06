@@ -7,7 +7,7 @@ $(TYPEDEF)
 
 Finalizer for TNR schemes
 
-### Constructors
+# Constructors
     Finalizer(f!::Function, E::Type)
 
 A Finalizer holds a function `f!` that is to be applied to a TNR scheme after each step of the algorithm (and at the beginning if specified by `run!(;finalize_beginning=true)`, which is the default behavior).

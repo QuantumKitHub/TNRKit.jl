@@ -7,14 +7,14 @@
 Constructs the partition function tensor for the six-vertex model with a given symmetry type and coupling constants `a`, `b`, and `c`.
 Compatible with no symmetry, U(1) symmetry, or CU(1) symmetry on each of its spaces.
 
-### Defaults
+# Defaults
     - T: Float64
     - symmetry: CU1Irrep
     - a: 1.0
     - b: 1.0
     - c: 1.0
 
-### Examples
+# Examples
 ```julia
     sixvertex() # Default symmetry is `CU1Irrep`, coupling constants are `a = 1.0`, `b = 1.0`, `c = 1.0`.
     sixvertex(Trivial) # No symmetry with default coupling constants.

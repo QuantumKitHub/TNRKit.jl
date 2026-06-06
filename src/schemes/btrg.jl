@@ -3,10 +3,10 @@ $(TYPEDEF)
 
 Bond-weighted Tensor Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T [, k=-1/2])
 
-### Running the algorithm
+# Running the algorithm
     run!(::BTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
@@ -16,11 +16,11 @@ Each step rescales the lattice by a (linear) factor of √2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Adachi et. al. Phys. Rev. B 105 (2022)](@cite adachi2022)
 """
 mutable struct BTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, BT <: AbstractTensorMap{E, S, 1, 1}} <: TNRScheme{E, S}

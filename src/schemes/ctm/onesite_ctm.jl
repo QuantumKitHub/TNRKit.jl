@@ -3,13 +3,13 @@ $(TYPEDEF)
 
 Corner Transfer Matrix Renormalization Group (one-site environment)
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T[, bc=ones, bc_free=false])
 
-### Running the algorithm
+# Running the algorithm
     run!(::CTM, trunc::TruncationStrategy, criterion::maxiter[, conv_criterion=1.0e-8, verbosity=1])
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
@@ -25,7 +25,7 @@ $(TYPEDFIELDS)
     └───┘ └──┘ └───┘
 ```
 
-### References
+# References
 * [Baxter Physica A 106(1) (1981)](@cite baxter1981)
 * [Nishino & Okunishi J. Phys. Soc. Jpn. 65 (1996)](@cite nishino1996)
 """

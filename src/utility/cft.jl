@@ -44,10 +44,12 @@ Base.:*(v::TensorKit.SectorVector, a::Number) = scale(v, a)
 
 A struct to hold conformal data extracted from a TNR scheme.
 
-### Constructors
+# Constructors
+    CFTData(scheme::TNRScheme; kwargs...)
+    CFTData(TA::TensorMap{E, S, 2, 2}; kwargs...)
+    CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; kwargs...)
 
-
-### Fields
+# Fields
     - `central_charge::Union{E, Missing}`: The central charge of the CFT. Will be `nothing` if not calculated.
     - `scaling_dimensions::TensorKit.SectorVector{E, I}`: The scaling dimensions of the CFT, organized in a `TensorKit.SectorVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
 

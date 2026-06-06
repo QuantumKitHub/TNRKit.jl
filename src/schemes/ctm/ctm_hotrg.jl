@@ -3,17 +3,17 @@ $(TYPEDEF)
 
 Corner Transfer Matrix environment + Higher-Order Tensor Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T, χenv[, ctm_iter=maxiter(2.0e4), ctm_tol=trivial_convcrit(1.0e-9), ctm_obc=false, χenv_ini=2])
 
-### Running the algorithm
+# Running the algorithm
     run!(::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit[, sweep=30, inv=false, conv_criterion=1.0e-12])
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Morita & Kawashima Phys. Rev. B 103(4) (2021)](@cite morita2021)
 """
 mutable struct ctm_HOTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, TC <: AbstractTensorMap{E, S, 1, 1}, TE <: AbstractTensorMap{E, S, 2, 1}} <: TNRScheme{E, S}

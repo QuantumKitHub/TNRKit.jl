@@ -16,16 +16,16 @@ $(TYPEDEF)
 
 Reflection-symmetric Corner Transfer Matrix
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
 
 CTM with spatial reflection symmetry along x and y axis. This allows different edge tensors for the vertical and horizontal edges.
 The corner tensors are related by their mirror images.
 
-### Running the algorithm
+# Running the algorithm
     run!(::rCTM, trunc::TruncationStrategy, criterion::TNRKit.stopcrit[, verbosity=1])
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 """

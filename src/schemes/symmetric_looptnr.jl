@@ -3,21 +3,21 @@ $(TYPEDEF)
 
 c4 & inversion symmetric Loop Optimization for Tensor Network Renormalization
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(TA, TB)
 
-### Running the algorithm
+# Running the algorithm
     run!(::SLoopTNR, trscheme::TruncationStrategy,
               criterion::TNRKit.stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, oneloop=true,
               verbosity=1])
 
 `oneloop=true` will use disentangled tensors as a starting guess for the optimization.
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Yang et. al. Phys. Rev. Letters 118 (2017)](@cite yang2017) (Fig. S6)
 
 """
