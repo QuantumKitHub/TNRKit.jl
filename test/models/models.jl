@@ -7,9 +7,15 @@ println("--------------------")
 println(" Testing all models ")
 println("--------------------")
 
+# Pre-computed anisotropic Ising critical values for testing (Jx=1, Jy=0.5)
+const ising_aniso_βc_1_05 = 0.6093778634360062
+const f_onsager_aniso_1_05 = -1.5741477440817498
+
 model_temp_answer_string_2d = [
     (classical_ising(Trivial), ising_βc, f_onsager, "2D Ising model with no symmetry"),
     (classical_ising(), ising_βc, f_onsager, "2D Ising model with ℤ₂ symmetry"),
+    (classical_ising(ising_aniso_βc_1_05; Jx = 1.0, Jy = 0.5), ising_aniso_βc_1_05, f_onsager_aniso_1_05, "2D anisotropic Ising model Jx=1,Jy=0.5 with ℤ₂ symmetry"),
+    (classical_ising(Trivial, ising_aniso_βc_1_05; Jx = 1.0, Jy = 0.5), ising_aniso_βc_1_05, f_onsager_aniso_1_05, "2D anisotropic Ising model Jx=1,Jy=0.5 with no symmetry"),
     (gross_neveu_start(0, 0, 0), 1.0, -1.4515448845652446, "Gross-Neveu model"),
     (classical_clock(Trivial, 3, 2.0 * log(√3 + 1) / 3), 2.0 * log(√3 + 1) / 3, -4.17924244901635, "3-state clock model with no symmetry"), # This is an approximation!
     (classical_clock(Z3Irrep, 3, 2.0 * log(√3 + 1) / 3), 2.0 * log(√3 + 1) / 3, -4.17924244901635, "3-state clock model with ℤ₃ symmetry"), # This is an approximation!
@@ -80,6 +86,26 @@ end
     central_charge = cft.central_charge
     @test central_charge ≈ 0.0 atol = 1.0e-12
     @info "Obtained central charge:\n$central_charge."
+end
+
+# Tests for anisotropic Ising helper functions
+@testset "Anisotropic Ising helpers" begin
+    # Critical condition: sinh(2βc Jx) * sinh(2βc Jy) = 1
+    for (Jx, Jy) in [(1.0, 1.0), (1.0, 0.5), (1.0, 0.3)]
+        βc = ising_anisotropic_βc(Jx, Jy)
+        @test sinh(2 * Float64(βc) * Jx) * sinh(2 * Float64(βc) * Jy) ≈ 1.0 rtol = 1.0e-14
+    end
+
+    # Jx=Jy reduces to the isotropic critical point
+    @test Float64(ising_anisotropic_βc(1.0, 1.0)) ≈ Float64(ising_βc) rtol = 1.0e-14
+
+    # f_onsager_anisotropic at Jx=Jy=1, βc matches f_onsager
+    @test f_onsager_anisotropic(ising_βc, 1.0, 1.0) ≈ Float64(f_onsager) rtol = 1.0e-14
+
+    # Jy→0 limit: f should approach the 1D Ising result
+    β = 0.5
+    f_1d = -(log(2.0) + log(cosh(β))) / β
+    @test f_onsager_anisotropic(β, 1.0, 1.0e-10) ≈ f_1d rtol = 1.0e-6
 end
 
 for (model, temp, answer, description) in model_temp_answer_string_3d
