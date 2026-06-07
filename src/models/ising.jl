@@ -74,7 +74,7 @@ on a square lattice, determined by the condition
 
     sinh(2 βc Jx) · sinh(2 βc Jy) = 1 .
 
-If `Jx == Jy`, this returns the isotropic critical point `ising_βc`.
+If `Jx == Jy`, this reduces to the isotropic critical point `ising_βc / Jx`.
 """
 function ising_anisotropic_βc(Jx::Real, Jy::Real)
     if Jx == Jy
@@ -139,7 +139,6 @@ For the anisotropic model, the coupling constants `Jx` (horizontal bonds)
 and `Jy` (vertical bonds) can be specified independently.
 The effective couplings are `Kx = β Jx` and `Ky = β Jy`.
 Defaults to the isotropic case `Jx = Jy = 1.0`.
-
 ### Examples
 ```julia
     classical_ising()                           # default: ℤ₂ symmetric, isotropic at βc
