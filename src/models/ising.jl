@@ -36,7 +36,7 @@ julia> ising_3D_free_energy_htse(ising_βc_3D)
 ```
 
 # References
-* [Bhanot et. al. Hep. Lat. 9312048 (1993)](@cite bhanot1993)
+* [Bhanot et. al. Phys. Rev. B 49 (1994)](@cite bhanot1994)
 """
 function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
     max_order <= 24 || error("3D Ising HTSE is only up to the 24th order.")
