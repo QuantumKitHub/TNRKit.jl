@@ -1,6 +1,12 @@
-using TNRKit
 using ParallelTestRunner
+using TNRKit
 
-testsuite = find_tests(@__DIR__)
-args = parse_args(ARGS)
-ParallelTestRunner.runtests(TNRKit, args)
+# --fast to indicate a smaller set of tests
+args = parse_args(ARGS; custom = ["fast"])
+fast = !isnothing(args.custom["fast"])
+
+const init_code = quote
+    const fast_tests = $fast
+end
+
+ParallelTestRunner.runtests(TNRKit, args; init_code)
