@@ -90,17 +90,24 @@ end
 
 # Tests for anisotropic Ising helper functions
 @testset "Anisotropic Ising helpers" begin
-    # Critical condition: sinh(2βc Jx) * sinh(2βc Jy) = 1
-    for (Jx, Jy) in [(1.0, 1.0), (1.0, 0.5), (1.0, 0.3)]
+    # Critical condition: sinh(2βc Jx) · sinh(2βc Jy) = 1, and βc scaling
+    for (Jx, Jy) in [(1.0, 1.0), (1.0, 0.5), (1.0, 0.3), (2.0, 2.0)]
         βc = ising_anisotropic_βc(Jx, Jy)
         @test sinh(2 * Float64(βc) * Jx) * sinh(2 * Float64(βc) * Jy) ≈ 1.0 rtol = 1.0e-14
+        if Jx == Jy
+            @test Float64(βc) ≈ Float64(ising_βc) / Jx  # βc scales as 1/J
+        end
     end
 
-    # Jx=Jy reduces to the isotropic critical point
-    @test Float64(ising_anisotropic_βc(1.0, 1.0)) ≈ Float64(ising_βc) rtol = 1.0e-14
-
-    # f_onsager_anisotropic at Jx=Jy=1, βc matches f_onsager
-    @test f_onsager_anisotropic(ising_βc, 1.0, 1.0) ≈ Float64(f_onsager) rtol = 1.0e-14
+    # Free energy scaling: f(β, J, J) = J · f_iso(β·J)
+    for (β, J) in [(Float64(ising_βc), 1.0), (0.5, 2.0), (0.3, 1.5)]
+        βc = ising_anisotropic_βc(J, J)
+        f_J = f_onsager_anisotropic(β, J, J)
+        f_Jc = f_onsager_anisotropic(βc, J, J)
+        f_1 = f_onsager_anisotropic(β * J, 1.0, 1.0)
+        @test f_J ≈ J * f_1 rtol = 1.0e-6
+        @test f_Jc ≈ J * Float64(f_onsager) rtol = 1.0e-6
+    end
 
     # Jy→0 limit: f should approach the 1D Ising result
     β = 0.5

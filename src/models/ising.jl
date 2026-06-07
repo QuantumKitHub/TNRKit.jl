@@ -78,7 +78,7 @@ If `Jx == Jy`, this returns the isotropic critical point `ising_βc`.
 """
 function ising_anisotropic_βc(Jx::Real, Jy::Real)
     if Jx == Jy
-        return Float64(ising_βc)
+        return Float64(ising_βc) / Jx
     end
     f(β) = sinh(2β * Jx) * sinh(2β * Jy) - 1.0
     β_max = Float64(ising_βc) / min(Jx, Jy) * 5.0
@@ -100,14 +100,14 @@ with anisotropic couplings `Jx`, `Jy` is
 where `Kx = β Jx`, `Ky = β Jy`.
 """
 function f_onsager_anisotropic(β::Real, Jx::Real, Jy::Real)
-    K1 = Float64(β * Jx)
-    K2 = Float64(β * Jy)
-    if Jx == Jy && abs(K1 - Float64(ising_βc)) < 1.0e-14
+    Kx, Ky = Float64(β * Jx), Float64(β * Jy)
+    # Only use the high-precision constant at the isotropic critical point with J=1
+    if Jx == 1 && Jy == 1 && abs(Kx - Float64(ising_βc)) < 1.0e-14
         return Float64(f_onsager)
     end
 
-    c1, s1 = cosh(2K1), sinh(2K1)
-    c2, s2 = cosh(2K2), sinh(2K2)
+    c1, s1 = cosh(2Kx), sinh(2Kx)
+    c2, s2 = cosh(2Ky), sinh(2Ky)
     s2_sq = s2^2
 
     # The 2D Onsager integral reduces to 1D after integrating out θ₂ analytically
@@ -143,27 +143,12 @@ Defaults to the isotropic case `Jx = Jy = 1.0`.
 ### Examples
 ```julia
     classical_ising()                           # default: ℤ₂ symmetric, isotropic at βc
-    classical_ising(Trivial, 0.5; h = 1.0)     # no symmetry, with magnetic field
-    classical_ising(1.0; Jx = 1.0, Jy = 0.5)   # anisotropic: Jx=1, Jy=0.5
+    classical_ising(Trivial, 0.5; h = 1.0)      # no symmetry, with magnetic field
+    classical_ising(1.0; Jx = 1.0, Jy = 0.5)    # anisotropic: Jx=1, Jy=0.5
     classical_ising(Trivial, 0.5; Jy = 0.8)     # anisotropic without symmetry
 
 !!! info
-    When studying this model with impurities, the tensor without symmetry should be constructed,
-    as the impurity breaks the ℤ₂ symmetry.
-
-!!! note "Leg convention"
-    The tensor follows the standard TNRKit convention:
-
-    ```
-         3 (up,    vertical, Jy)
-         |
-    1 ←--+--← 4 (right, horizontal, Jx)
-         |
-         2 (down,  vertical, Jy)
-    ```
-
-    Legs 1 and 4 are **horizontal** bonds (coupling `Jx`),
-    legs 2 and 3 are **vertical** bonds (coupling `Jy`).
+    When studying this model with impurities, the tensor without symmetry should be constructed, as the impurity breaks the ℤ₂ symmetry.
 
 See also: [`classical_ising_3D`](@ref), [`ising_anisotropic_βc`](@ref).
 """
@@ -173,28 +158,24 @@ end
 classical_ising(; kwargs...) = classical_ising(ising_βc; kwargs...)
 classical_ising(::Type{Trivial}; kwargs...) = classical_ising(Trivial, ising_βc; kwargs...)
 function classical_ising(::Type{Trivial}, β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0)
-    Kx = β * Jx
-    Ky = β * Jy
+    Kx, Ky = β * Jx, β * Jy
     init = zeros(T, 2, 2, 2, 2)
     for (i, j, k, l) in Iterators.product([1:2 for _ in 1:4]...)
         init[i, j, k, l] = mod(i + j + k + l, 2) == 0 ? cosh(h * β) : sinh(h * β)
     end
     init = TensorMap(init, ℂ^2 ⊗ ℂ^2 ← ℂ^2 ⊗ ℂ^2)
 
-    bond_tensor_x = ising_bond_tensor(Kx, T)   # horizontal bonds (legs 1, 4)
-    bond_tensor_y = ising_bond_tensor(Ky, T)   # vertical bonds   (legs 2, 3)
-
+    bond_tensor_x = ising_bond_tensor(Kx, T)
+    bond_tensor_y = ising_bond_tensor(Ky, T)
     @tensor T[-1 -2; -3 -4] := 2 * init[1 2; 3 4] * bond_tensor_x[-1; 1] * bond_tensor_y[-2; 2] * bond_tensor_y[3; -3] * bond_tensor_x[4; -4]
     return T
 end
 function classical_ising(::Type{Z2Irrep}, β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0)
     @assert h == 0.0 "External magnetic field is not compatible with ℤ₂ symmetry"
-    Kx = β * Jx
-    Ky = β * Jy
-
-    xh, yh = cosh(Kx), sinh(Kx)    # horizontal bonds (legs 1, 4)
-    xv, yv = cosh(Ky), sinh(Ky)    # vertical bonds   (legs 2, 3)
-    w = sqrt(xh * yh * xv * yv)    # off-diagonal coupling √(cosh Kx sinh Kx cosh Ky sinh Ky)
+    Kx, Ky = β * Jx, β * Jy
+    xh, yh = cosh(Kx), sinh(Kx)
+    xv, yv = cosh(Ky), sinh(Ky)
+    w = sqrt(xh * yh * xv * yv)
 
     S = ℤ₂Space(0 => 1, 1 => 1)
     t = zeros(T, S ⊗ S ← S ⊗ S)
@@ -213,9 +194,9 @@ with a magnetisation impurity. Compatible with no symmetry on each of its spaces
 
 ### Examples
 ```julia
-    classical_ising_impurity()                      # default: isotropic at βc
-    classical_ising_impurity(0.5; h = 1.0)          # with magnetic field
-    classical_ising_impurity(0.5; Jx = 1.0, Jy = 0.5)  # anisotropic couplings
+    classical_ising_impurity()                          # default: isotropic at βc
+    classical_ising_impurity(0.5; h = 1.0)              # with magnetic field
+    classical_ising_impurity(0.5; Jx = 1.0, Jy = 0.5)   # anisotropic couplings
 ```
 !!! info
     When calculating the free energy with `free_energy()`, set the `initial_size` keyword argument to `2.0`.
@@ -228,16 +209,15 @@ function classical_ising_impurity(β::Real; kwargs...)
 end
 classical_ising_impurity(; kwargs...) = classical_ising_impurity(ising_βc; kwargs...)
 function classical_ising_impurity(::Type{Trivial}, β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0)
-    Kx = β * Jx
-    Ky = β * Jy
+    Kx, Ky = β * Jx, β * Jy
     init = zeros(T, 2, 2, 2, 2)
     for (i, j, k, l) in Iterators.product([1:2 for _ in 1:4]...)
         init[i, j, k, l] = mod(i + j + k + l, 2) == 0 ? sinh(h * β) : cosh(h * β)
     end
     init = TensorMap(init, ℂ^2 ⊗ ℂ^2 ← ℂ^2 ⊗ ℂ^2)
 
-    bond_tensor_x = ising_bond_tensor(Kx, T)   # horizontal bonds (legs 1, 4)
-    bond_tensor_y = ising_bond_tensor(Ky, T)   # vertical bonds   (legs 2, 3)
+    bond_tensor_x = ising_bond_tensor(Kx, T)
+    bond_tensor_y = ising_bond_tensor(Ky, T)
 
     @tensor t[-1 -2; -3 -4] := 2 * init[1 2; 3 4] * bond_tensor_x[-1; 1] * bond_tensor_y[-2; 2] * bond_tensor_y[3; -3] * bond_tensor_x[4; -4]
     return t
