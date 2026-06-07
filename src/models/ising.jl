@@ -7,6 +7,52 @@ const ising_cft_exact = [
 ]
 const ising_βc_3D = 1.0 / 4.51152469
 
+# HTSE coefficients for the 3D Ising free energy (hep-lat/9312048, Table 2).
+const ISING_3D_HTSE_COEFFS = [
+    0, 0, 0, 0, 3, 0, 22, 0, 375 // 2, 0, 1980, 0, 24044, 0, 319170, 0,
+    18059031 // 4, 0, 201010408 // 3, 0, 5162283633 // 5, 0, 16397040750, 0, 266958797382,
+]
+
+"""
+    ising_3D_free_energy_htse(β::Real; J::Real=1.0, max_order::Int=24)
+
+Compute the free energy per spin for the 3D Ising model on a simple cubic lattice
+using the high-temperature series expansion (HTSE) to 24th order.
+
+The expansion is taken from Bhanot, Creutz, Glässner, Schilling (hep-lat/9312048),
+Table 2, with the formula:
+
+    f(β) = -(1/β) * log(2*cosh(β*J)³) - (1/β) * Σ_{k} f_k * tanh(β*J)^k
+
+# Arguments
+- `β`: Inverse temperature.
+- `J`: Coupling constant (default: 1.0).
+- `max_order`: Maximum order of the series expansion (default: 24, max: 24).
+
+# Examples
+```julia
+julia> ising_3D_free_energy_htse(ising_βc_3D)
+-3.5083582548883747
+```
+"""
+function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
+    max_order <= 24 || error("3D Ising HTSE is only up to the 24th order.")
+    K = β * J
+    t = tanh(K)
+    f = -log(2 * cosh(K)^3) / β
+    series = zero(Float64)
+    t_pow = one(Float64)
+    for k in 0:max_order
+        coeff = ISING_3D_HTSE_COEFFS[k + 1]
+        if !iszero(coeff)
+            series += Float64(coeff) * t_pow
+        end
+        t_pow *= t
+    end
+    f -= series / β
+    return f
+end
+
 """
     ising_bond_tensor(β::Real, T::Type{<:Number})
 
@@ -152,8 +198,8 @@ function classical_ising(::Type{Z2Irrep}, β::Real; T::Type{<:Number} = Float64,
 
     S = ℤ₂Space(0 => 1, 1 => 1)
     t = zeros(T, S ⊗ S ← S ⊗ S)
-    block(t, Irrep[ℤ₂](0)) .= T[2 * xh * xv  2 * w;      2 * w       2 * yh * yv]
-    block(t, Irrep[ℤ₂](1)) .= T[2 * w      2 * yh * xv;  2 * xh * yv   2 * w]
+    block(t, Irrep[ℤ₂](0)) .= [2 * xh * xv 2 * w; 2 * w 2 * yh * yv]
+    block(t, Irrep[ℤ₂](1)) .= [2 * w 2 * yh * xv; 2 * xh * yv 2 * w]
 
     return t
 end
