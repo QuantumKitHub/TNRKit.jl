@@ -30,7 +30,8 @@ end
 
 function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
-        return CFTData(missing, _scaling_dimensions(T))
+        scaling_dimensions = _scaling_dimensions(T)
+        return CFTData(missing, StructuredVector(scaling_dimensions, Dict([Trivial => collect(eachindex(scaling_dimensions))])))
     else
         CFTData(T, T; shape, kwargs...)
     end
