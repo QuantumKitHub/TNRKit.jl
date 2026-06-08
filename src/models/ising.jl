@@ -34,6 +34,9 @@ Table 2, with the formula:
 julia> ising_3D_free_energy_htse(ising_βc_3D)
 -3.5083582548883747
 ```
+
+# References
+* [Bhanot et. al. Phys. Rev. B 49 (1994)](@cite bhanot1994)
 """
 function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
     max_order <= 24 || error("3D Ising HTSE is only up to the 24th order.")
@@ -52,6 +55,7 @@ function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
     f -= series / β
     return f
 end
+ising_3d_free_energy_htse(; kwargs...) = ising_3D_free_energy_htse(ising_βc_3D; kwargs...)
 
 """
     ising_bond_tensor(β::Real, T::Type{<:Number})
@@ -139,6 +143,7 @@ For the anisotropic model, the coupling constants `Jx` (horizontal bonds)
 and `Jy` (vertical bonds) can be specified independently.
 The effective couplings are `Kx = β Jx` and `Ky = β Jy`.
 Defaults to the isotropic case `Jx = Jy = 1.0`.
+
 ### Examples
 ```julia
     classical_ising()                           # default: ℤ₂ symmetric, isotropic at βc
@@ -191,7 +196,7 @@ Constructs the partition function tensor for a 2D square lattice
 for the classical Ising model with a given inverse temperature `β` and external magnetic field `h`
 with a magnetisation impurity. Compatible with no symmetry on each of its spaces.
 
-### Examples
+# Examples
 ```julia
     classical_ising_impurity()                          # default: isotropic at βc
     classical_ising_impurity(0.5; h = 1.0)              # with magnetic field
@@ -234,7 +239,7 @@ for the classical Ising model with a given inverse temperature `β`.
 Compatible with no symmetry or with explicit ℤ₂ symmetry on each of its spaces.
 Defaults to ℤ₂ symmetry and coupling constant `J = 1.0` if the symmetry type and coupling constant are not provided.
 
-### Examples
+# Examples
 ```julia
     classical_ising_3D() # Default ℤ₂ symmetry, inverse temperature is `ising_βc_3D`, coupling constant is `J = 1.0`.
     classical_ising_3D(Trivial, 0.5; J = 1.5) # Custom inverse temperature and coupling constant.

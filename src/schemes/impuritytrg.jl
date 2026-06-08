@@ -3,10 +3,10 @@ $(TYPEDEF)
 
 Impurity method for Tensor Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T, T_imp1, T_imp2, T_imp3, T_imp4)
 
-### Running the algorithm
+# Running the algorithm
     run!(::ImpurityTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityTRG_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
@@ -16,7 +16,7 @@ Each step rescales the lattice by a (linear) factor of √2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
@@ -31,7 +31,7 @@ p---4---3---p
     p   p
 ```
 
-### References
+# References
 * [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 * [Morita et. al. Phys. Rev. B 111 (2025)](@cite morita2025)
 """

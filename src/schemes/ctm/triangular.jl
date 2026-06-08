@@ -3,7 +3,7 @@ $(TYPEDEF)
 
 Corner Transfer Matrix Renormalization Group for the triangular lattice
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(T, [, symmetrize=false])
 
@@ -24,7 +24,7 @@ In the flipped arrow convention, the arrows point from (120°, 60°, 0°) to (18
 or with a (0,6) tensor (120°, 60°, 0°, 300°, 240°, 180°) where all arrows point inward (unflipped arrow convention).
 The keyword argument symmetrize makes the tensor C6v symmetric when set to true. If symmetrize = false, it checks the symmetry explicitly.
 
-### Running the algorithm
+# Running the algorithm
     run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
 
 !!! info "verbosity levels"
@@ -32,11 +32,11 @@ The keyword argument symmetrize makes the tensor C6v symmetric when set to true.
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Naumann et al. Phys. Rev. B 113(4) (2026)](@cite naumann2026)
 """
 mutable struct CTM_triangular{A, S}
@@ -78,7 +78,7 @@ $(TYPEDEF)
 
 C6v symmetric Corner Transfer Matrix Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(T, [, symmetrize=false])
 
@@ -99,7 +99,7 @@ In the flipped arrow convention, the arrows point from (120°, 60°, 0°) to (18
 or with a (0,6) tensor (120°, 60°, 0°, 300°, 240°, 180°) where all arrows point inward (unflipped arrow convention).
 The keyword argument symmetrize makes the tensor C6v symmetric when set to true. If symmetrize = false, it checks the symmetry explicitly.
 
-### Running the algorithm
+# Running the algorithm
     run!(::c6vCTM, trunc::MatrixAlgebraKit.TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, projectors=:twothirds, conditioning=true, verbosity=1])
 
 `projectors` can either be :twothirds or :full, determining the type of projectors used in the renormalization step. This is based on https://arxiv.org/abs/2510.04907v1.
@@ -110,11 +110,11 @@ The keyword argument symmetrize makes the tensor C6v symmetric when set to true.
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Naumann et al. Phys. Rev. B 113(4) (2026)](@cite naumann2026)
 * c6v implementation provided by Sander De Meyer
 """

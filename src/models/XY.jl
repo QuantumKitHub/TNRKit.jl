@@ -25,13 +25,13 @@ and charge truncation `charge_trunc`.
 Compatible with U(1) symmetry or CU(1) = O(2) symmetry on each of its spaces.
 Defaults to CU(1) symmetry if the symmetry type is not provided.
 
-### Examples
+# Examples
 ```julia
     classical_XY(U1Irrep, 0.9, 6)
     classical_XY(CU1Irrep, 0.9, 4)
 ```
 
-### References
+# References
 * [Yu et. al. 10.1103/PhysRevE.89.013308 (2014)](@cite Yu_2014)
 """
 function classical_XY(beta::Float64, charge_trunc::Int; kwargs...)

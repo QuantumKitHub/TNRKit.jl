@@ -13,7 +13,7 @@ This loop entropy is defined as the von Neumann entropy of the transfer matrix f
 The loop entropy is a measure of the entanglement across the bond, and can be used to diagnose the presence of short-range entanglement in the loop MPS.
 The entanglement spectrum is also returned.
 
-### References
+# References
 * [Evenbly et. al. Phys. Rev. B 98 (2018)](@cite Evenbly_2018)
 
 """

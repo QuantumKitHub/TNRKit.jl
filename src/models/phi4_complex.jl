@@ -155,25 +155,25 @@ It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2
 Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry or explicit U(1) symmetry on each of its spaces.
 Defaults to U(1) symmetry if the symmetry type is not provided.
 
-### Arguments
+# Arguments
 - `K::Integer`: Approximation parameter.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Approximation parameter `K`
-#### Trivial (no symmetry)
+# Approximation parameter `K`
+## Trivial (no symmetry)
 The tensor is constructed by performing a Gauss-Hermite quadrature to approximate the integrals in the partition function.
 The bond dimension is equal to `K^2`.
 
-#### ℤ₂×ℤ₂ symmetry
+## ℤ₂×ℤ₂ symmetry
 The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
 The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 
-#### U(1) symmetry
+## U(1) symmetry
 The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
 The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 
-### Examples
+# Examples
 ```julia
     phi4_complex(10, -1., 1.)
 ```
@@ -181,7 +181,7 @@ The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 !!! info
     When studying this model with impurities, the tensor without symmetry should be constructed, as the impurity breaks the symmetry.
 
-### References
+# References
 Piceu Jarid and Adwait Naravane, but based on:
 * [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 * [Delcamp et. al. Phys. Rev. Research 2, 033278 (2020)](@cite delcamp2020)
@@ -347,17 +347,17 @@ The impurity is a ϕ operator on this site.
     
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-### Arguments
+# Arguments
 - `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Examples
+# Examples
 ```julia
     phi4_complex_impϕ(10, -1., 1.)
 ```
 
-### References
+# References
 Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 
 See also: [`phi4_complex`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕabs`](@ref), [`phi4_complex_impϕ2`](@ref), [`phi4_complex_all`](@ref).
@@ -389,17 +389,17 @@ The impurity is a ϕ† operator on this site.
 
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-### Arguments
+# Arguments
 - `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Examples
+# Examples
 ```julia
     phi4_complex_impϕdag(10, -1., 1.)
 ```
 
-### References
+# References
 Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 
 See also: [`phi4_complex`](@ref), [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕabs`](@ref), [`phi4_complex_impϕ2`](@ref), [`phi4_complex_all`](@ref).
@@ -430,17 +430,17 @@ The impurity is a √(ϕϕ†) operator on this site.
     
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-### Arguments
+# Arguments
 - `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Examples
+# Examples
 ```julia
     phi4_complex_impϕabs(10, -1., 1.)
 ```
 
-### References
+# References
 Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 
 See also: [`phi4_complex`](@ref), [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕ2`](@ref), [`phi4_complex_all`](@ref).
@@ -471,17 +471,17 @@ The impurity is a ϕϕ† operator on this site.
     
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-### Arguments
+# Arguments
 - `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Examples
+# Examples
 ```julia
     phi4_complex_impϕ2(10, -1., 1.)
 ```
 
-### References
+# References
 Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 
 See also: [`phi4_complex`](@ref), [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕabs`](@ref), [`phi4_complex_all`](@ref).
@@ -512,17 +512,17 @@ It is faster to compute them all at once than one for one individually.
 
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-### Arguments
+# Arguments
 - `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
-### Examples
+# Examples
 ```julia
     phi4_complex_all(10, -1., 1.)
 ```
 
-### References
+# References
 Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 
 See also: [`phi4_complex`](@ref), [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕabs`](@ref), [`phi4_complex_impϕ2`](@ref).

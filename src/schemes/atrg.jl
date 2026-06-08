@@ -3,10 +3,10 @@ $(TYPEDEF)
 
 Anisotropic Tensor Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
 
-### Running the algorithm
+# Running the algorithm
     run!(::ATRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
@@ -16,11 +16,11 @@ Each step rescales the lattice by a (linear) factor of √2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Adachi et. al. Phys. Rev. B 102 (2020)](@cite adachi2020)
 """
 mutable struct ATRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}} <: TNRScheme{E, S}

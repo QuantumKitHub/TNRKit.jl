@@ -3,10 +3,10 @@ $(TYPEDEF)
 
 Higher-Order Tensor Renormalization Group
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
 
-### Running the algorithm
+# Running the algorithm
     run!(::HOTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of 2
@@ -16,11 +16,11 @@ Each step rescales the lattice by a (linear) factor of 2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Xie et. al. Phys. Rev. B 86 (2012)](@cite xie2012)
 
 """

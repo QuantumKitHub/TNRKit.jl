@@ -3,7 +3,7 @@ $(TYPEDEF)
 
 Corner Transfer Matrix Renormalization Group for the honeycomb lattice
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(T, [, symmetrize=false])
 
@@ -24,7 +24,7 @@ In the flipped arrow convention, the arrows point from (120°) to (240°, 0°).
 or with a (0,3) tensor (120°, 0°, 240°) where all arrows point inward (unflipped arrow convention).
 The keyword argument symmetrize makes the tensor C6v symmetric when set to true. If symmetrize = false, it checks the symmetry explicitly.
 
-### Running the algorithm
+# Running the algorithm
     run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
 
 !!! info "verbosity levels"
@@ -32,11 +32,11 @@ The keyword argument symmetrize makes the tensor C6v symmetric when set to true.
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Lukin et al. Phys. Rev. B 107.054424 (2023)](@cite lukin2023)
 """
 mutable struct c3vCTM_honeycomb{A, S}
@@ -110,7 +110,7 @@ $(TYPEDEF)
 
 Corner Transfer Matrix Renormalization Group for the honeycomb lattice
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T)
     $(FUNCTIONNAME)(T, [, symmetrize=false])
 
@@ -130,7 +130,7 @@ CTM can be called with a (2, 1) tensor, where the directions are (240°, 0°, 12
 In the flipped arrow convention, the arrows point from (120°) to (240°, 0°).
 or with a (0,3) tensor (120°, 0°, 240°) where all arrows point inward (unflipped arrow convention).
 
-### Running the algorithm
+# Running the algorithm
     run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
 
 !!! info "verbosity levels"
@@ -138,11 +138,11 @@ or with a (0,3) tensor (120°, 0°, 240°) where all arrows point inward (unflip
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 * [Nyckees et al. Phys. Rev. E 108.064132 (2023)](@cite nyckees2023)
 """
 mutable struct CTM_honeycomb{E, S}

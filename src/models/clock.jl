@@ -101,7 +101,7 @@ gauge theory at inverse coupling `β`. The resulting tensor is represented in
 the Fourier basis on ``\\mathbb{Z}_N`` and can be viewed as the dual clock-model
 formulation used for finite-temperature tensor-network studies.
 
-### References
+# References
 * [Naravane et al. arXiv:2602.13124 (2026)](@cite naravane2026)
 """
 function ZN_gauge_theory_dual(N::Int, β::Real; T::Type{<:Number} = ComplexF64)

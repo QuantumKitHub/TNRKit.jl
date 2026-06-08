@@ -6,10 +6,10 @@ Simple two-point correlation function for Higher-Order Tensor Renormalization Gr
 !!! info "Distance"
     Distance of `dist` is 2^{dist} sites apart. E.g. dist=3 means distance 2^3=8 sites apart.
 
-### Constructors
+# Constructors
     $(FUNCTIONNAME)(T, Timp1, Timp2, dist)
 
-### Running the algorithm
+# Running the algorithm
     run!(scheme::CorrelationHOTRG, trunc::TruncationStrategy, niter::stopcrit[, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of 2
@@ -19,11 +19,11 @@ Each step rescales the lattice by a (linear) factor of 2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
+# References
 Piceu J.
 """
 mutable struct CorrelationHOTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
