@@ -55,9 +55,10 @@ A struct to hold conformal data extracted from a TNR scheme.
 
 """
 struct CFTData{E, I}
-    "Central charge of the CFT. Will be `nothing` if not calculated."
+    "Central charge of the CFT. Will be `missing` if not calculated."
     central_charge::Union{E, Missing}
-
+    "Elementary modular parameter for one tensor"
+    modular_param::E
     "Scaling dimensions of the CFT."
     scaling_dimensions::TensorKit.SectorVector{E, I}
 end
@@ -77,7 +78,7 @@ function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kw
     end
 end
 CFTData(scheme::TNRScheme; kwargs...) = CFTData(scheme.T; kwargs...) # simple 1-site unitcell schemes
-CFTData(scheme::LoopTNR; kwargs...) = CFTData(scheme.TA, scheme.TB; kwargs...) # simple 1-site unitcell schemes
+CFTData(scheme::LoopTNR; kwargs...) = CFTData(scheme.TA, scheme.TB; kwargs...) # 2-site unitcell schemes
 function CFTData(scheme::BTRG; kwargs...) # merge bond tensors into central tensor
     @tensor T_unit[-1 -2; -3 -4] := scheme.T[1 2; -3 -4] * scheme.S1[-2; 2] *
         scheme.S2[-1; 1]
@@ -86,18 +87,14 @@ end
 
 # Main implementation, two-site unitcell
 function CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], trunc = truncrank(16), truncentanglement = trunctol(; rtol = 1.0e-14)) where {E, S}
+    norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
+    TA′, TB′ = TA / norm_const, TB / norm_const
     if shape == [1, 1, 0]
         throw(ArgumentError("The shape [1, 1, 0] is not compatible with a two-site unit cell."))
     elseif (shape ≈ [sqrt(2), 2 * sqrt(2), 0]) || (shape == [1, 4, 1]) # these shapes need no truncation
-        norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
-        return spec(TA / norm_const, TB / norm_const, shape)
+        return spec(TA′, TB′, shape)
     elseif (shape == [1, 8, 1]) || (shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)])
-
-        norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
-
-        dl, ur, ul, dr = MPO_opt(
-            TA / norm_const, TB / norm_const, trunc, truncentanglement
-        )
+        dl, ur, ul, dr = MPO_opt(TA′, TB′, trunc, truncentanglement)
         T = reduced_MPO(dl, ur, ul, dr, trunc)
         return spec(T, T, shape)
     else
@@ -129,20 +126,16 @@ end
 
 """
 The "canonical" normalization constant for loop-TNR tensors,
-which is the eigenvalue with largest real part of the 2 x 2 transfer matrix.
+which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
 """
 function area_term(A, B; is_real = true)
-    a_in = domain(A)[1]
-    b_in = domain(B)[1]
-    x0 = ones(a_in ⊗ b_in)
-
     function f0(x)
         @plansor fx[-1 -2] := A[c -1; 1 m] * x[1 2] * B[m -2; 2 c]
         @plansor ffx[-1 -2] := B[c -1; 1 m] * fx[1 2] * A[m -2; 2 c]
         return ffx
     end
-
-    spec0, _, info = eigsolve(f0, x0, 1, :LR; verbosity = 0)
+    x0 = ones(domain(A, 1) ⊗ domain(B, 1))
+    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
     end
@@ -155,9 +148,10 @@ end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
 function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
-    area = shape[1] * shape[2]
-    Imτ = shape[1] / shape[2]
-    relative_shift = shape[3] / shape[1]
+    τ0 = _modular_parameter(TA, TB)
+    area = imag(τ0) * shape[1] * shape[2]
+    Imτ = imag(τ0) * shape[1] / shape[2]
+    relative_shift = real(τ0) / imag(τ0) + shape[3] / (shape[1] * imag(τ0))
 
     I = sectortype(TA)
     𝔽 = field(TA)
@@ -219,7 +213,7 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
     sv = sort(sv; by = real)
     sv = filter(x -> real(x) ≤ 1.0e16, sv)
 
-    return CFTData(central_charge, sv)
+    return CFTData(central_charge, τ0, sv)
 end
 
 function MPO_opt(
@@ -280,4 +274,84 @@ function reduced_MPO(
     D, U = SVD12(temp, trunc)
     @plansor translate[-1 -2; -3 -4] := U[-2; 1 -4] * D[-1 1; -3]
     return translate
+end
+
+# Elementary modular parameter
+# ============================
+"""
+    _modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2})
+
+Extract the elementary modular parameter of one tensor from 2x2 transfer matrices.
+"""
+function _modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
+    # vertical (north to south)
+    evs_v = _eigsolve_2x2_NtoS(TA, TB)
+    # horizontal (east to west)
+    evs_h = _eigsolve_2x2_EtoW(TA, TB)
+    # diagonal (northeast to southwest)
+    evs_a = _eigsolve_2x2_NEtoSW(TA, TB)
+    # diagonal (northwest to southeast)
+    evs_b = _eigsolve_2x2_NWtoSE(TA, TB)
+    # norm²
+    v = sqrt(
+        log(abs(evs_v[2] / evs_v[1])) /
+            log(abs(evs_h[2] / evs_h[1]))
+    )
+    # phase
+    r = log(abs(evs_a[2] / evs_a[1])) /
+        log(abs(evs_b[2] / evs_b[1]))
+    θ = acos((v^2 + 1) / (2 * v) * (r - 1) / (r + 1))
+    return v * cis(θ)
+end
+
+function _eigsolve_2x2_NtoS(TA, TB)
+    function f0(x)
+        @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        @plansor fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
+        return fx
+    end
+    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
+    spec0, _, info = eigsolve(f0, x0, 2, :LM; verbosity = 0)
+    if info.converged == 0
+        @warn "The area term eigensolver did not converge."
+    end
+    return spec0
+end
+
+function _eigsolve_2x2_EtoW(TA, TB)
+    TA′ = permute(TA, ((3, 1), (4, 2)))
+    TB′ = permute(TB, ((3, 1), (4, 2)))
+    return _eigsolve_2x2_NtoS(TA′, TB′)
+end
+
+function _eigsolve_2x2_NEtoSW(TA, TB)
+    #= 
+        1   2
+        ┌---┬---┐
+        |   |   |
+    3'--A---B---┤ 3
+        |   |   |
+    4'--B---A---┘ 4
+        |   |
+        1'  2'
+    =#
+    function f0(x)
+        @plansor fx[-1 -2 -3 -4] := TB[-2 -3; a b] * x[-1 a b -4]
+        @plansor fx[-1 -2 -3 -4] := TA[-1 -2; a b] * fx[a b -3 -4]
+        @plansor fx[-1 -2 -3 -4] := TA[-3 -4; a b] * fx[-1 -2 a b]
+        @plansor fx[-1 -2 -3 -4] := TB[-4 -1; a b] * fx[-3 a b -2]
+        return fx
+    end
+    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1) ⊗ domain(TB, 2) ⊗ domain(TA, 2))
+    spec0, _, info = eigsolve(f0, x0, 2, :LM; verbosity = 0)
+    if info.converged == 0
+        @warn "The area term eigensolver did not converge."
+    end
+    return spec0
+end
+
+function _eigsolve_2x2_NWtoSE(TA, TB)
+    TA′ = permute(TA, ((2, 4), (1, 3)))
+    TB′ = permute(TB, ((2, 4), (1, 3)))
+    return _eigsolve_2x2_NEtoSW(TA′, TB′)
 end
