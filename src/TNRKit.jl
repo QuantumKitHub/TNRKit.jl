@@ -125,7 +125,7 @@ export phi4_complex, phi4_complex_impϕ, phi4_complex_impϕdag, phi4_complex_imp
 include("utility/free_energy.jl")
 export free_energy
 
-include("utility/StructuredVector.jl")
+include("utility/structuredvector.jl")
 
 include("utility/cft.jl")
 export CFTData, central_charge
