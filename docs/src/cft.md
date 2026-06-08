@@ -26,7 +26,7 @@ The `CFTData` struct has two fields:
 - `scaling_dimensions`
 
 The `central_charge` can be either `missing` (when using the $[1, 1, 0]$ shape), or a number.
-The `scaling_dimensions` field is a `SectorVector` from TensorKit.jl.
+The `scaling_dimensions` field is a `StructuredVector`.
 
 The `scaling_dimensions` can be indexed like an `AbstractVector` (i.e. with scalars, slices, ...), or with sectors (e.g. `Z2Irrep(0)`), which will provide the scaling dimensions associated with that sector/charge.
 To check which sectors you can index the `scaling_dimensions` with you can use `keys(scaling_dimensions)`.

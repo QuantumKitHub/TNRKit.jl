@@ -1,44 +1,3 @@
-# Extensions on top of TensorKit.SectorVector
-Base.broadcasted(f, v::TensorKit.SectorVector) = TensorKit.SectorVector(broadcast(f, parent(v)), v.structure)
-Base.broadcasted(f, v::TensorKit.SectorVector, a) = TensorKit.SectorVector(broadcast(f, parent(v), a), v.structure)
-Base.broadcasted(f, a, v::TensorKit.SectorVector) = TensorKit.SectorVector(broadcast(f, a, parent(v)), v.structure)
-function Base.broadcasted(f, v1::TensorKit.SectorVector, v2::TensorKit.SectorVector)
-    if v1.structure != v2.structure
-        throw(ArgumentError("Cannot broadcast two SectorVectors with different structures"))
-    end
-    return TensorKit.SectorVector(broadcast(f, parent(v1), parent(v2)), v1.structure)
-end
-
-function Base.filter(f, v::TensorKit.SectorVector)
-    data = copy(parent(v))
-    structure = copy(v.structure)
-
-    kept_inds = findall(f, parent(v))
-    sectors = keys(structure)
-    for (i, sector) in enumerate(sectors)
-        structure[sector] = i == 1 ? (1:findlast(x -> x <= structure[sector].stop, kept_inds)) : ((structure[sectors[i - 1]].stop + 1):findlast(x -> x <= structure[sector].stop, kept_inds))
-    end
-    data = data[kept_inds]
-    return TensorKit.SectorVector(data, structure)
-end
-
-function Base.sort(v::TensorKit.SectorVector; kwargs...)
-    # sort within the sectors, then concatenate the data and update the structure
-    # Ideally this would sort the total data, but sectorvectors are only compatible with
-    # structures that contain unitranges, we cannot interweave the data of different sectors.
-    data = copy(parent(v))
-    newdata = similar(data)
-    structure = copy(v.structure)
-    sectors = keys(structure)
-    for sector in sectors
-        newdata[structure[sector]] = sort(data[structure[sector]]; kwargs...)
-    end
-    return TensorKit.SectorVector(newdata, structure)
-end
-
-Base.:*(a::Number, v::TensorKit.SectorVector) = scale(v, a)
-Base.:*(v::TensorKit.SectorVector, a::Number) = scale(v, a)
-
 """
     CFTData{E, I} where {E, I}
 
@@ -51,15 +10,15 @@ A struct to hold conformal data extracted from a TNR scheme.
 
 # Fields
     - `central_charge::Union{E, Missing}`: The central charge of the CFT. Will be `nothing` if not calculated.
-    - `scaling_dimensions::TensorKit.SectorVector{E, I}`: The scaling dimensions of the CFT, organized in a `TensorKit.SectorVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
+    - `scaling_dimensions::StructuredVector{E, K, V, A}`: The scaling dimensions of the CFT, organized in a `StructuredVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
 
 """
-struct CFTData{E, I}
+struct CFTData{E, K, V, A <: AbstractVector{E}}
     "Central charge of the CFT. Will be `nothing` if not calculated."
     central_charge::Union{E, Missing}
 
     "Scaling dimensions of the CFT."
-    scaling_dimensions::TensorKit.SectorVector{E, I}
+    scaling_dimensions::StructuredVector{E, K, V, A}
 end
 
 function Base.show(io::IO, data::CFTData)
@@ -199,23 +158,23 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
     norm_const_0 = spec_sector[one(I)][1]
     central_charge = 6 / pi / (Imτ - area / 4) * log(norm_const_0)
 
-    # Construct a SectorVector from the data of the different sectors
+    # Construct a StructuredVector from the data of the different sectors
     data = ComplexF64[]
-    structure = TensorKit.SectorDict{sectortype(xspace), UnitRange{Int}}()
+    structure = Dict{eltype(sectors(fuse(xspace))), Vector{Int}}()
     last_index = 1
     for charge in sectors(fuse(xspace))
         DeltaS = -1 / (2 * pi * Imτ) * log.(spec_sector[charge] / norm_const_0)
         if !(relative_shift ≈ 0)
             push!(data, (real.(DeltaS) + imag.(DeltaS) / relative_shift * im)...)
-            structure[charge] = last_index:(last_index + length(DeltaS) - 1)
+            structure[charge] = [last_index:(last_index + length(DeltaS) - 1)...]
         else
             push!(data, real.(DeltaS)...)
-            structure[charge] = last_index:(last_index + length(DeltaS) - 1)
+            structure[charge] = [last_index:(last_index + length(DeltaS) - 1)...]
         end
         last_index += length(DeltaS)
     end
 
-    sv = TensorKit.SectorVector(data, structure)
+    sv = StructuredVector(data, structure)
     sv = sort(sv; by = real)
     sv = filter(x -> real(x) ≤ 1.0e16, sv)
 
