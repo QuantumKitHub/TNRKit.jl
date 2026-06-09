@@ -55,7 +55,7 @@ function ising_3D_free_energy_htse(β::Real; J::Real = 1.0, max_order::Int = 24)
     f -= series / β
     return f
 end
-ising_3d_free_energy_htse(; kwargs...) = ising_3D_free_energy_htse(ising_βc_3D; kwargs...)
+ising_3D_free_energy_htse(; kwargs...) = ising_3D_free_energy_htse(ising_βc_3D; kwargs...)
 
 """
     ising_bond_tensor(β::Real, T::Type{<:Number})
