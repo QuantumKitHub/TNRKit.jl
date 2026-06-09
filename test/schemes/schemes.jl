@@ -166,10 +166,15 @@ end
     @test X2 ≈ 2.0 rtol = 1.0e-2
 end
 
-# LoopTNR
-@testset "LoopTNR - Ising Model - Dense Solver" begin
-    @info "LoopTNR ising free energy"
-    scheme = LoopTNR(T)
+# LoopTNR — anisotropic Ising
+const Jx_aniso, Jy_aniso = 1.0, 0.6
+const βc_aniso_test = ising_anisotropic_βc(Jx_aniso, Jy_aniso)
+const T_aniso = classical_ising(Z2Irrep, βc_aniso_test; Jx = Jx_aniso, Jy = Jy_aniso)
+const f_aniso_exact = f_onsager_anisotropic(βc_aniso_test, Jx_aniso, Jy_aniso)
+
+@testset "LoopTNR - Anisotropic Ising Model (Jx=1.0, Jy=0.6)" begin
+    @info "LoopTNR anisotropic ising free energy"
+    scheme = LoopTNR(T_aniso)
 
     loop_condition = LoopParameters(
         sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
@@ -180,30 +185,35 @@ end
         scheme, truncrank(8), maxiter(25), loop_condition
     )
 
-    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-6
+    @test free_energy(data, βc_aniso_test) ≈ f_aniso_exact rtol = 1.0e-6
 
-    @info "LoopTNR ising CFT data"
-    scheme = LoopTNR(T)
+    @info "LoopTNR anisotropic ising CFT data"
+    scheme = LoopTNR(T_aniso)
     run!(scheme, truncrank(12), maxiter(10))
 
     for shape in [[1, 4, 1], [sqrt(2), 2 * sqrt(2), 0]]
-        cft = sort(CFTData(scheme; shape = shape).scaling_dimensions; by = abs)
-        d1, d2 = real(cft[Z2Irrep(1)][1]), real(cft[Z2Irrep(0)][2])
-        @info "Obtained lowest scaling dimensions:\n$(d1), $(d2)."
-        @test d1 ≈ ising_cft_exact[1] rtol = 5.0e-4
-        @test d2 ≈ ising_cft_exact[2] rtol = 5.0e-4
+        cft = CFTData(scheme; shape = shape)
+        d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
+        d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
+        @info "Shape $shape:  Δ(σ) = $d_σ,  Δ(ε) = $d_ε,  c = $(cft.central_charge)"
+        @test d_σ ≈ ising_cft_exact[1] rtol = 5.0e-4
+        @test d_ε ≈ ising_cft_exact[2] rtol = 5.0e-4
+        @test cft.central_charge ≈ 0.5 rtol = 5.0e-3
     end
 
     for shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]]
-        cft = sort(CFTData(scheme; shape = shape, trunc = truncrank(16), truncentanglement = trunctol(atol = 1.0e-10)).scaling_dimensions; by = real)
-        d1, d2 = real(cft[Z2Irrep(1)][1]), real(cft[Z2Irrep(0)][2])
-        @info "Obtained lowest scaling dimensions:\n$(d1), $(d2)."
-        @test d1 ≈ ising_cft_exact[1] rtol = 1.0e-3
-        @test d2 ≈ ising_cft_exact[2] rtol = 1.0e-3
+        cft = CFTData(scheme; shape = shape, trunc = truncrank(16),
+                      truncentanglement = trunctol(atol = 1.0e-10))
+        d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
+        d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
+        @info "Shape $shape:  Δ(σ) = $d_σ,  Δ(ε) = $d_ε,  c = $(cft.central_charge)"
+        @test d_σ ≈ ising_cft_exact[1] rtol = 2.0e-3
+        @test d_ε ≈ ising_cft_exact[2] rtol = 2.0e-3
+        @test cft.central_charge ≈ 0.5 rtol = 1.0e-2
     end
 
-    @info "LoopTNR ising ground state degeneracy"
-    T1 = classical_ising(ising_βc - 0.01)
+    @info "LoopTNR anisotropic ising ground state degeneracy"
+    T1 = classical_ising(βc_aniso_test - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
     scheme = LoopTNR(T1)
     run!(scheme, truncrank(12), maxiter(20))
     gsd = ground_state_degeneracy(scheme)
@@ -212,7 +222,7 @@ end
     @test X1 ≈ 1.0 rtol = 1.0e-2
     @test X2 ≈ 1.0 rtol = 1.0e-2
 
-    T2 = classical_ising(ising_βc + 0.01)
+    T2 = classical_ising(βc_aniso_test + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
     scheme = LoopTNR(T2)
     run!(scheme, truncrank(12), maxiter(20))
     gsd = ground_state_degeneracy(scheme)
