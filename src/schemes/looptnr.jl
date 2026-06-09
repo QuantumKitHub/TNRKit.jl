@@ -433,7 +433,8 @@ function loop_opt(
 end
 
 """
-Coarse-grain `ΨB` to renormalized `TA`, `TB` tensors
+Coarse-grain `ΨB` to renormalized `TA`, `TB` tensors.
+The lattice is rotated by 135 degrees in counter clockwise direction.
 """
 function ΨB_to_TATB(psiB::Vector{T}) where {T <: AbstractTensorMap{<:Any, <:Any, 1, 2}}
     #= 

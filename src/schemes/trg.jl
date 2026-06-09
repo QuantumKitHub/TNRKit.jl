@@ -9,7 +9,8 @@ Tensor Renormalization Group
 # Running the algorithm
     run!(::TRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
-Each step rescales the lattice by a (linear) factor of √2
+Each step rescales the lattice by a (linear) factor of √2,
+and rotate the lattice by 45 degrees in counter clockwise direction.
 
 !!! info "verbosity levels"
     - 0: No output
