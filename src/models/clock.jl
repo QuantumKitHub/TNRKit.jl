@@ -148,5 +148,3 @@ function ZN_gauge_theory_dual(N::Int, β::Real; T::Type{<:Number} = ComplexF64)
             symmetric_space ⊗ symmetric_space ⊗ symmetric_space_dual ⊗ symmetric_space_dual,
     )
 end
-
-ZN_gaugetheory_dual(N::Int, β::Real; kwargs...) = ZN_gauge_theory_dual(N, β; kwargs...)
