@@ -72,7 +72,8 @@ end
 
 function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
-        return CFTData(missing, _scaling_dimensions(T))
+        τ0 = elementary_modular_parameter(T, T)
+        return CFTData(missing, τ0, _scaling_dimensions(T))
     else
         CFTData(T, T; shape, kwargs...)
     end
@@ -102,8 +103,7 @@ function CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [
     end
 end
 
-# Trivial diagonalisation of the transfer matrix. Currently the v and unitcell are not acessible from the outside.
-# The user should really be using the other shapes anyways.
+# TODO: replace v with solved elementary modular parameter
 function _scaling_dimensions(T::TensorMap{E, S, 2, 2}; v = 1, unitcell = 1) where {E, S}
     # stack unitcell copies of T and trace
     indices = [[i, -i, -(i + unitcell), i + 1] for i in 1:unitcell]
@@ -128,13 +128,13 @@ end
 The "canonical" normalization constant for loop-TNR tensors,
 which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
 """
-function area_term(A, B; is_real = true)
+function area_term(TA, TB; is_real = true)
     function f0(x)
-        @plansor fx[-1 -2] := A[c -1; 1 m] * x[1 2] * B[m -2; 2 c]
-        @plansor ffx[-1 -2] := B[c -1; 1 m] * fx[1 2] * A[m -2; 2 c]
+        @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        @plansor ffx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
         return ffx
     end
-    x0 = ones(domain(A, 1) ⊗ domain(B, 1))
+    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
@@ -148,7 +148,7 @@ end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
 function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
-    τ0 = _modular_parameter(TA, TB)
+    τ0 = elementary_modular_parameter(TA, TB)
     area = imag(τ0) * shape[1] * shape[2]
     Imτ = imag(τ0) * shape[1] / shape[2]
     relative_shift = real(τ0) / imag(τ0) + shape[3] / (shape[1] * imag(τ0))
@@ -159,6 +159,7 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
         throw(ArgumentError("Sectors with non-Bosonic charge $I has not been implemented"))
     end
 
+    # eigenvalues of the transfer matrix
     xspace, f = if shape ≈ [1, 4, 1]
         domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
             MPO_action_1x4_twist
@@ -169,7 +170,6 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
             shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
         domain(TB) ⊗ domain(TB), MPO_action_2gates
     end
-
     spec_sector = Dict(
         map(sectors(fuse(xspace))) do charge
             V = (I == Trivial) ? 𝔽^1 : Vect[I](charge => 1)
@@ -190,19 +190,21 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
         end
     )
 
+    # central charge
     norm_const_0 = spec_sector[one(I)][1]
     central_charge = 6 / pi / (Imτ - area / 4) * log(norm_const_0)
 
-    # Construct a SectorVector from the data of the different sectors
+    # A SectorVector for scaling dimension and conformal spin
     data = ComplexF64[]
     structure = TensorKit.SectorDict{sectortype(xspace), UnitRange{Int}}()
     last_index = 1
     for charge in sectors(fuse(xspace))
         DeltaS = -1 / (2 * pi * Imτ) * log.(spec_sector[charge] / norm_const_0)
-        if !(relative_shift ≈ 0)
+        if !isapprox(relative_shift, 0; atol = 1.0e-6)
             push!(data, (real.(DeltaS) + imag.(DeltaS) / relative_shift * im)...)
             structure[charge] = last_index:(last_index + length(DeltaS) - 1)
         else
+            # not enough precision to resolve conformal spin
             push!(data, real.(DeltaS)...)
             structure[charge] = last_index:(last_index + length(DeltaS) - 1)
         end
@@ -278,12 +280,15 @@ end
 
 # Elementary modular parameter
 # ============================
+# TODO: one-tensor version
 """
-    _modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2})
+    elementary_modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
 
 Extract the elementary modular parameter of one tensor from 2x2 transfer matrices.
 """
-function _modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
+function elementary_modular_parameter(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
     # vertical (north to south)
     evs_v = _eigsolve_2x2_NtoS(TA, TB)
     # horizontal (east to west)
@@ -321,7 +326,7 @@ end
 function _eigsolve_2x2_EtoW(TA, TB)
     TA′ = permute(TA, ((3, 1), (4, 2)))
     TB′ = permute(TB, ((3, 1), (4, 2)))
-    return _eigsolve_2x2_NtoS(TA′, TB′)
+    return _eigsolve_2x2_NtoS(TB′, TA′)
 end
 
 function _eigsolve_2x2_NEtoSW(TA, TB)
@@ -353,5 +358,5 @@ end
 function _eigsolve_2x2_NWtoSE(TA, TB)
     TA′ = permute(TA, ((2, 4), (1, 3)))
     TB′ = permute(TB, ((2, 4), (1, 3)))
-    return _eigsolve_2x2_NEtoSW(TA′, TB′)
+    return _eigsolve_2x2_NEtoSW(TB′, TA′)
 end
