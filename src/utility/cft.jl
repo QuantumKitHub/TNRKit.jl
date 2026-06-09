@@ -71,14 +71,6 @@ function Base.show(io::IO, data::CFTData)
     return nothing
 end
 
-function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
-    if shape == [1, 1, 0] # trivial implementation
-        τ0 = elementary_modular_parameter(T, T)
-        return CFTData(missing, τ0, _scaling_dimensions(T))
-    else
-        CFTData(T, T; shape, kwargs...)
-    end
-end
 CFTData(scheme::TNRScheme; kwargs...) = CFTData(scheme.T; kwargs...) # simple 1-site unitcell schemes
 CFTData(scheme::LoopTNR; kwargs...) = CFTData(scheme.TA, scheme.TB; kwargs...) # 2-site unitcell schemes
 function CFTData(scheme::BTRG; kwargs...) # merge bond tensors into central tensor
@@ -87,18 +79,32 @@ function CFTData(scheme::BTRG; kwargs...) # merge bond tensors into central tens
     return CFTData(T_unit; kwargs...)
 end
 
+# one-site unitcell
+function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
+    if shape == [1, 1, 0] # trivial implementation
+        τ0 = elementary_modular_parameter(T, T)
+        return CFTData(missing, τ0, _scaling_dimensions(T))
+    else
+        CFTData(T, T; shape, kwargs...)
+    end
+end
+
 # Main implementation, two-site unitcell
-function CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], trunc = truncrank(16), truncentanglement = trunctol(; rtol = 1.0e-14)) where {E, S}
+function CFTData(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0],
+        trunc = truncrank(16), truncentanglement = trunctol(; rtol = 1.0e-14)
+    ) where {E, S}
     norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
     TA′, TB′ = TA / norm_const, TB / norm_const
+    τ0 = elementary_modular_parameter(TA′, TB′)
     if shape == [1, 1, 0]
         throw(ArgumentError("The shape [1, 1, 0] is not compatible with a two-site unit cell."))
     elseif (shape ≈ [sqrt(2), 2 * sqrt(2), 0]) || (shape == [1, 4, 1]) # these shapes need no truncation
-        return spec(TA′, TB′, shape)
+        return spec(TA′, TB′, shape, τ0)
     elseif (shape == [1, 8, 1]) || (shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)])
         dl, ur, ul, dr = MPO_opt(TA′, TB′, trunc, truncentanglement)
         T = reduced_MPO(dl, ur, ul, dr, trunc)
-        return spec(T, T, shape)
+        return spec(T, T, shape, τ0)
     else
         throw(ArgumentError("Shape $shape is not implemented."))
     end
@@ -148,7 +154,19 @@ function area_term(TA, TB; is_real = true)
 end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
-function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
+"""
+    spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
+
+Internal function to construct transfer matrices and extract conformal data.
+
+# Parameters
+
+TA, TB: Tensors used to construct the transfer matrix. 
+    They can be different from the original tensor in the network.
+shape: A triplet `[h, L, x]` describing the geometry of the transfer matrix.
+τ0: The modular parameter of a square patch of the original network.
+"""
+function spec(TA::TensorMap, TB::TensorMap, shape::Array, τ0::Number; Nh = 25)
     I = sectortype(TA)
     𝔽 = field(TA)
     if BraidingStyle(I) != Bosonic()
@@ -156,18 +174,19 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
     end
 
     # eigenvalues of the transfer matrix
-    τ0 = elementary_modular_parameter(TA, TB)
     xspace, f, τ = if shape ≈ [1, 4, 1]
         domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
             MPO_action_1x4_twist, (1 + τ0) / 4
-    elseif shape ≈ [1, 8, 1]
-        domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
-            MPO_action_1x4, (1 + τ0) / 8
     elseif shape ≈ [sqrt(2), 2 * sqrt(2), 0]
         domain(TB) ⊗ domain(TB), MPO_action_2gates, (1 + τ0) / 2 / (1 - τ0)
+        # in the following cases, (TA, TB) are no longer the original tensor in the network
+    elseif shape ≈ [1, 8, 1]
+        τ0′ = (τ0 - 1) / 2
+        domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
+            MPO_action_1x4, τ0′ / 4
     elseif shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
-        error("Not implemented")
-        # domain(TB) ⊗ domain(TB), MPO_action_2gates
+        τ0′ = (τ0 - 1) / 2
+        domain(TB) ⊗ domain(TB), MPO_action_2gates, (1 + τ0′) / 2 / (1 - τ0′)
     else
         error("Unsupported transfer matrix shape.")
     end
@@ -252,6 +271,10 @@ end
 # Apply functions for diagonalising different shapes of transfer matrices
 # =======================================================================
 # Fig.25 of https://arxiv.org/pdf/2311.18785. Firstly appear in Chenfeng Bao's thesis, see http://hdl.handle.net/10012/14674.
+"""
+When the elementary modular parameter for TA, TB is `τ`,
+the transfer matrix has `τ_TM = (1 + τ) / 2 / (1 - τ)`.
+"""
 function MPO_action_2gates(TA::TensorMap, TB::TensorMap, x::TensorMap)
     @tensor fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
     @tensor ffx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] *
@@ -259,6 +282,10 @@ function MPO_action_2gates(TA::TensorMap, TB::TensorMap, x::TensorMap)
     return permute(ffx, ((2, 3, 4, 1), (5,)))
 end
 
+"""
+When the elementary modular parameter for TA, TB is `τ`,
+the transfer matrix has `τ_TM = τ / 4`.
+"""
 function MPO_action_1x4(TA::TensorMap, TB::TensorMap, x::TensorMap)
     @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] * TA[41 -1; 1 12] *
         TB[12 -2; 2 23] *
@@ -266,18 +293,25 @@ function MPO_action_1x4(TA::TensorMap, TB::TensorMap, x::TensorMap)
     return TTTTx
 end
 
+"""
+When the elementary modular parameter for TA, TB is `τ`,
+the transfer matrix has `τ_TM = (τ + 1) / 4`.
+"""
 function MPO_action_1x4_twist(TA::TensorMap, TB::TensorMap, x::TensorMap)
     TTTTx = MPO_action_1x4(TA, TB, x)
     return permute(TTTTx, ((2, 3, 4, 1), (5,)))
 end
 
+"""
+This renormalization will change the elementary
+modular parameter from τ to (τ - 1) / 2.
+"""
 function reduced_MPO(
         dl::TensorMap, ur::TensorMap, ul::TensorMap, dr::TensorMap,
         trunc::TruncationStrategy
     )
-    @plansor temp[-1 -2; -3 -4] := ur[-1; 1 4] *
-        ul[4; 3 -2] *
-        dr[-3; 2 1] * dl[2; -4 3]
+    @plansor temp[-1 -2; -3 -4] :=
+        ur[-1; 1 4] * ul[4; 3 -2] * dr[-3; 2 1] * dl[2; -4 3]
     D, U = SVD12(temp, trunc)
     @plansor translate[-1 -2; -3 -4] := U[-2; 1 -4] * D[-1 1; -3]
     return translate
