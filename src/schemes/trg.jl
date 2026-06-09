@@ -11,6 +11,7 @@ Tensor Renormalization Group
 
 Each step rescales the lattice by a (linear) factor of √2,
 and rotate the lattice by 45 degrees in counter clockwise direction.
+The elementary modular parameter `τ₀ ↦ (τ₀ - 1) / (τ₀ + 1)`.
 
 !!! info "verbosity levels"
     - 0: No output
