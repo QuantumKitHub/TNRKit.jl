@@ -9,7 +9,7 @@ println("---------------------")
 
 T = classical_ising()
 T_3D = classical_ising_3D()
-const f_benchmark3D = ising_3D_free_energy_htse(ising_βc_3D)
+const f_benchmark3D = ising_3D_free_energy_htse()
 
 function cft_finalize!(scheme)
     finalize!(scheme)

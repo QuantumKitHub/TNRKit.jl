@@ -39,5 +39,7 @@ end
 
 Base.:*(v::StructuredVector, x::Number) = StructuredVector(v.data .* x, v.structure)
 Base.:*(x::Number, v::StructuredVector) = StructuredVector(x .* v.data, v.structure)
-Base.:/(v::StructuredVector, x) = StructuredVector(v.data ./ x, v.structure)
-Base.:/(x, v::StructuredVector) = StructuredVector(x ./ v.data, v.structure)
+Base.:/(v::StructuredVector, x::Number) = StructuredVector(v.data ./ x, v.structure)
+Base.:/(x::Number, v::StructuredVector) = StructuredVector(x ./ v.data, v.structure)
+
+Base.keys(v::StructuredVector) = keys(v.structure)
