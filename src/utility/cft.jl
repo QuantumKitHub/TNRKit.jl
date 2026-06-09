@@ -149,11 +149,6 @@ end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
 function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
-    τ0 = elementary_modular_parameter(TA, TB)
-    area = imag(τ0) * shape[1] * shape[2]
-    Imτ = imag(τ0) * shape[1] / shape[2]
-    relative_shift = real(τ0) / imag(τ0) + shape[3] / (shape[1] * imag(τ0))
-
     I = sectortype(TA)
     𝔽 = field(TA)
     if BraidingStyle(I) != Bosonic()
@@ -161,15 +156,20 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
     end
 
     # eigenvalues of the transfer matrix
-    xspace, f = if shape ≈ [1, 4, 1]
+    τ0 = elementary_modular_parameter(TA, TB)
+    xspace, f, τ = if shape ≈ [1, 4, 1]
         domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
-            MPO_action_1x4_twist
+            MPO_action_1x4_twist, (1 + τ0) / 4
     elseif shape ≈ [1, 8, 1]
         domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
-            MPO_action_1x4
-    elseif shape ≈ [sqrt(2), 2 * sqrt(2), 0] ||
-            shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
-        domain(TB) ⊗ domain(TB), MPO_action_2gates
+            MPO_action_1x4, (1 + τ0) / 8
+    elseif shape ≈ [sqrt(2), 2 * sqrt(2), 0]
+        domain(TB) ⊗ domain(TB), MPO_action_2gates, (1 + τ0) / 2 / (1 - τ0)
+    elseif shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
+        error("Not implemented")
+        # domain(TB) ⊗ domain(TB), MPO_action_2gates
+    else
+        error("Unsupported transfer matrix shape.")
     end
     spec_sector = Dict(
         map(sectors(fuse(xspace))) do charge
@@ -193,15 +193,19 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
 
     # central charge
     norm_const_0 = spec_sector[one(I)][1]
-    central_charge = 6 / pi / (Imτ - area / 4) * log(norm_const_0)
+    area = shape[1] * shape[2]
+    central_charge = 6 / pi / (imag(τ) - imag(τ0) * area / 4) * log(norm_const_0)
 
     # A SectorVector for scaling dimension and conformal spin
     data = ComplexF64[]
     structure = TensorKit.SectorDict{sectortype(xspace), UnitRange{Int}}()
     last_index = 1
+    relative_shift = real(τ) / imag(τ)
     for charge in sectors(fuse(xspace))
-        DeltaS = -1 / (2 * pi * Imτ) * log.(spec_sector[charge] / norm_const_0)
+        # DeltaS = Δ - i s Re(τ) / Im(τ)
+        DeltaS = -1 / (2 * pi * imag(τ)) * log.(spec_sector[charge] / norm_const_0)
         if !isapprox(relative_shift, 0; atol = 1.0e-6)
+            # save `Δ - i s` in `data`
             push!(data, (real.(DeltaS) + imag.(DeltaS) / relative_shift * im)...)
             structure[charge] = last_index:(last_index + length(DeltaS) - 1)
         else
