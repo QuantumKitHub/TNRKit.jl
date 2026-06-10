@@ -10,7 +10,7 @@ A struct to hold conformal data extracted from a TNR scheme.
 
 # Fields
     - `central_charge::Union{E, Missing}`: The central charge of the CFT. Will be `nothing` if not calculated.
-    - `modular_parameter::E`: The elementary modular parameter of a square spacetime patch of the CFT.
+    - `modular_parameter::E`: The elementary modular parameter of a square patch of the lattice network.
     - `scaling_dimensions::StructuredVector{E, K, V, A}`: The scaling dimensions of the CFT, organized in a `StructuredVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
 
 """
@@ -120,18 +120,16 @@ end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
 """
-    spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
-
 Internal function to construct transfer matrices and extract conformal data.
 
-# Parameters
-
-TA, TB: Tensors used to construct the transfer matrix. 
-    They can be different from the original tensor in the network.
-shape: A triplet `[h, L, x]` describing the geometry of the transfer matrix.
-τ0: The modular parameter of a square patch of the original network.
+# Arguments
+- `TA, TB`: Rank-4 network tensors (may be identical for 1-site unit cells).
+- `shape`:  A triplet `[h, L, x]` — height, circumference, and horizontal shift
+  of the tube geometry, in units of the original tensor patch.
+- `τ0`:     Elementary modular parameter of one tensor.
+- `Nh`:     Number of eigenvalues to solve for per sector (default 25).
 """
-function spec(TA::TensorMap, TB::TensorMap, shape::Array, τ0::Number; Nh = 25)
+function spec(TA::TensorMap, TB::TensorMap, shape::Vector{<:Number}, τ0::Number; Nh = 25)
     I = sectortype(TA)
     𝔽 = field(TA)
     if BraidingStyle(I) != Bosonic()
