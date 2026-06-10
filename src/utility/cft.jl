@@ -291,23 +291,24 @@ Extract the elementary modular parameter of one tensor from 2x2 transfer matrice
 function elementary_modular_parameter(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
-    # vertical (north to south)
-    evs_v = _eigsolve_2x2_NtoS(TA, TB)
-    # horizontal (east to west)
-    evs_h = _eigsolve_2x2_EtoW(TA, TB)
-    # diagonal (northeast to southwest)
-    evs_a = _eigsolve_2x2_NEtoSW(TA, TB)
-    # diagonal (northwest to southeast)
-    evs_b = _eigsolve_2x2_NWtoSE(TA, TB)
-    # norm²
-    v = sqrt(
-        log(abs(evs_v[2] / evs_v[1])) /
-            log(abs(evs_h[2] / evs_h[1]))
-    )
-    # phase
-    r = log(abs(evs_a[2] / evs_a[1])) /
-        log(abs(evs_b[2] / evs_b[1]))
-    θ = acos((v^2 + 1) / (2 * v) * (r - 1) / (r + 1))
+    # TODO: fermions
+    if BraidingStyle(sectortype(TA)) != Bosonic
+        return complex(0.0, 1.0)
+    end
+    # leading eigenvalue of each transfer matrix
+    # corresponding to the Δ = s = 0 primary field
+    λv = _eigsolve_2x2_NtoS(TA, TB)
+    λh = _eigsolve_2x2_EtoW(TA, TB)
+    λa = _eigsolve_2x2_NEtoSW(TA, TB)
+    λb = _eigsolve_2x2_NWtoSE(TA, TB)
+    # edge case: c = 0
+    if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
+        return complex(0.0, 1.0)
+    end
+    # when c ≠ 0
+    a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
+    # c here is actually π c / 6
+    c, v, θ = solve_cvtheta(a1, a2, a3)
     return v * cis(θ)
 end
 
@@ -318,11 +319,12 @@ function _eigsolve_2x2_NtoS(TA, TB)
         return fx
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
-    spec0, _, info = eigsolve(f0, x0, 2, :LM; verbosity = 0)
+    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
     end
-    return spec0
+    # TODO: for fermions
+    return first(spec0)
 end
 
 function _eigsolve_2x2_EtoW(TA, TB)
@@ -350,15 +352,66 @@ function _eigsolve_2x2_NEtoSW(TA, TB)
         return fx
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1) ⊗ domain(TB, 2) ⊗ domain(TA, 2))
-    spec0, _, info = eigsolve(f0, x0, 2, :LM; verbosity = 0)
+    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
     end
-    return spec0
+    # TODO: for fermions
+    return first(spec0)
 end
 
 function _eigsolve_2x2_NWtoSE(TA, TB)
     TA′ = permute(TA, ((2, 4), (1, 3)))
     TB′ = permute(TB, ((2, 4), (1, 3)))
     return _eigsolve_2x2_NEtoSW(TB′, TA′)
+end
+
+# Logistic sigmoid and its inverse (logit)
+sigmoid(x) = 1 / (1 + exp(-x))
+logit(p) = log(p / (1 - p))
+
+"""
+    solve_cvtheta(a1, a2, a3; c0=0.5, v0=1.0, θ0=π/2)
+
+Solve for positive (c, v) and θ ∈ (0, π) from the three equations:
+
+    a1 = (1/v - v) * c * sin(θ)
+    a2 = (v / (1 + v² - 2v cos θ) - v) * c * sin(θ)
+    a3 = (v / (1 + v² + 2v cos θ) - v) * c * sin(θ)
+
+Returns `(c, v, θ)` as a named tuple.
+"""
+function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
+    # Work in unconstrained coords to keep variables in their natural domain.
+    #   c = exp(xc)        →  c > 0
+    #   v = exp(xv)        →  v > 0
+    #   θ = π * σ(xθ)      →  θ ∈ (0, π)
+    function f!(du, u, p)
+        xc, xv, xθ = u
+        c = exp(xc)
+        v = exp(xv)
+        θ = π * sigmoid(xθ)
+
+        sinθ = sin(θ)
+        cosθ = cos(θ)
+
+        du[1] = (1 / v - v) * c * sinθ - a1
+        du[2] = (v / (1 + v^2 - 2v * cosθ) - v) * c * sinθ - a2
+        return du[3] = (v / (1 + v^2 + 2v * cosθ) - v) * c * sinθ - a3
+    end
+
+    # Initial guess in unconstrained space
+    u0 = [log(c0), log(v0), logit(θ0 / π)]
+    prob = NonlinearProblem(f!, u0)
+    sol = solve(prob, NewtonRaphson(; autodiff = AutoForwardDiff()))
+
+    if !SciMLBase.successful_retcode(sol)
+        @warn "Solver did not converge" retcode = sol.retcode residuals = sol.residuals
+    end
+
+    xc, xv, xθ = sol.u
+    c = exp(xc)
+    v = exp(xv)
+    θ = π * sigmoid(xθ)
+    return c, v, θ
 end

@@ -11,6 +11,7 @@ using SpecialFunctions
 using FastGaussQuadrature
 using QuadGK
 using Roots
+using NonlinearSolve
 using Base.Threads
 using Combinatorics: permutations
 
