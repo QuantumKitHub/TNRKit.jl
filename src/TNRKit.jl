@@ -52,6 +52,7 @@ include("schemes/correlationhotrg.jl")
 
 #Thermal TNR
 include("schemes/ttnr.jl")
+
 # Loop Methods
 include("schemes/looptnr.jl")
 include("schemes/symmetric_looptnr.jl")
@@ -124,6 +125,8 @@ export phi4_complex, phi4_complex_impϕ, phi4_complex_impϕdag, phi4_complex_imp
 include("utility/free_energy.jl")
 export free_energy
 
+include("utility/structuredvector.jl")
+
 include("utility/cft.jl")
 export CFTData, central_charge
 
@@ -145,4 +148,5 @@ include("utility/blocking.jl")
 export block_tensors
 
 include("utility/network_value.jl")
+
 end
