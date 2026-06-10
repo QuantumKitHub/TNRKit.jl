@@ -1,5 +1,5 @@
 """
-    CFTData{E, I} where {E, I}
+    struct CFTData{E, K, V, A <: AbstractVector{E}}
 
 A struct to hold conformal data extracted from a TNR scheme.
 
@@ -11,10 +11,10 @@ A struct to hold conformal data extracted from a TNR scheme.
 # Fields
     - `central_charge::Union{E, Missing}`: The central charge of the CFT. Will be `nothing` if not calculated.
     - `modular_parameter::E`: The elementary modular parameter of a square spacetime patch of the CFT.
-    - `scaling_dimensions::TensorKit.SectorVector{E, I}`: The scaling dimensions of the CFT, organized in a `TensorKit.SectorVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
+    - `scaling_dimensions::StructuredVector{E, K, V, A}`: The scaling dimensions of the CFT, organized in a `StructuredVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
 
 """
-struct CFTData{E, I}
+struct CFTData{E, K, V, A <: AbstractVector{E}}
     "Central charge of the CFT. Will be `missing` if not calculated."
     central_charge::Union{E, Missing}
     "Elementary modular parameter for one tensor"

@@ -202,8 +202,10 @@ const f_aniso_exact = f_onsager_anisotropic(βc_aniso_test, Jx_aniso, Jy_aniso)
     end
 
     for shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]]
-        cft = CFTData(scheme; shape = shape, trunc = truncrank(16),
-                      truncentanglement = trunctol(atol = 1.0e-10))
+        cft = CFTData(
+            scheme; shape = shape, trunc = truncrank(16),
+            truncentanglement = trunctol(atol = 1.0e-10)
+        )
         d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
         d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
         @info "Shape $shape:  Δ(σ) = $d_σ,  Δ(ε) = $d_ε,  c = $(cft.central_charge)"
