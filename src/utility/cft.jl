@@ -379,7 +379,7 @@ Solve for positive (c, v) and θ ∈ (0, π) from the three equations:
     a2 = (v / (1 + v² - 2v cos θ) - v) * c * sin(θ)
     a3 = (v / (1 + v² + 2v cos θ) - v) * c * sin(θ)
 
-Returns `(c, v, θ)` as a named tuple.
+Returns `(c, v, θ)`.
 """
 function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
     # Work in unconstrained coords to keep variables in their natural domain.
