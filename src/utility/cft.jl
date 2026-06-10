@@ -42,7 +42,7 @@ end
 function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
         τ0 = elementary_modular_parameter(T, T)
-        Δs = _scaling_dimensions(T)
+        Δs = _scaling_dimensions(T, τ0)
         return CFTData(missing, τ0, StructuredVector(Δs, Dict([Trivial => collect(eachindex(Δs))])))
     else
         CFTData(T, T; shape, kwargs...)
@@ -70,9 +70,12 @@ function CFTData(
     end
 end
 
-# TODO: replace v with solved elementary modular parameter
-function _scaling_dimensions(T::TensorMap{E, S, 2, 2}; v = 1, unitcell = 1) where {E, S}
-    # stack unitcell copies of T and trace
+"""
+Construct the transfer matrix along vertical direction
+with `unitcell` copies of `T` concatenated horizontally.
+`τ0` is the modular parameter of a single `T`.
+"""
+function _scaling_dimensions(T::TensorMap{E, S, 2, 2}, τ0::Number; unitcell = 1) where {E, S}
     indices = [[i, -i, -(i + unitcell), i + 1] for i in 1:unitcell]
     indices[end][4] = 1
 
@@ -88,7 +91,9 @@ function _scaling_dimensions(T::TensorMap{E, S, 2, 2}; v = 1, unitcell = 1) wher
     data = filter(x -> real(x) > 0, data) # filtering out negative real values
     data = filter(x -> abs(x) > 1.0e-12, data) # filtering out small values
 
-    return unitcell * (1 / (2π * v)) .* log.(data[1] ./ data)
+    # modular parameter of the constructed transfer matrix
+    Imτ = imag(τ0) / unitcell
+    return 1 / (2π * Imτ) .* log.(data[1] ./ data)
 end
 
 """

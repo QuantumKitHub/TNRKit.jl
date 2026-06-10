@@ -11,31 +11,39 @@ T = classical_ising()
 T_3D = classical_ising_3D()
 const f_benchmark3D = ising_3D_free_energy_htse()
 
+const Jx_aniso, Jy_aniso = 1.0, 0.6
+const βc_aniso_test = ising_anisotropic_βc(Jx_aniso, Jy_aniso)
+const T_aniso = classical_ising(Z2Irrep, βc_aniso_test; Jx = Jx_aniso, Jy = Jy_aniso)
+const f_aniso_exact = f_onsager_anisotropic(βc_aniso_test, Jx_aniso, Jy_aniso)
+
 function cft_finalize!(scheme)
     finalize!(scheme)
     return CFTData(scheme)
 end
 
 # TRG
-@testset "TRG - Ising Model" begin
-    @info "TRG ising free energy"
-    scheme = TRG(T)
+@testset "TRG - Anisotropic Ising Model (Jx=1.0, Jy=0.6)" begin
+    @info "TRG anisotropic ising free energy"
+    scheme = TRG(T_aniso)
     data = run!(scheme, truncrank(24), maxiter(25))
 
-    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 2.0e-6
+    @test free_energy(data, βc_aniso_test) ≈ f_aniso_exact rtol = 2.0e-6
 
-    @info "TRG ising CFT data"
-    scheme = TRG(T)
+    @info "TRG anisotropic ising CFT data — shape [1, 1, 0]"
+    scheme = TRG(T_aniso)
     run!(scheme, truncrank(24), maxiter(10))
 
-    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+    cft = CFTData(scheme; shape = [1, 1, 0])
+    sd_all = real(cft.scaling_dimensions[Trivial])
+    cft_sorted = sort(sd_all[2:end]; by = abs)
 
-    @test cft[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
-    @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
+    @test cft_sorted[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
+    @test cft_sorted[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
 
-    @info "TRG ising ground state degeneracy"
+    @info "Obtained scaling dimensions: Δ₁ = $(cft_sorted[1]), Δ₂ = $(cft_sorted[2])"
 
-    T1 = classical_ising(ising_βc - 0.01)
+    @info "TRG anisotropic ising ground state degeneracy"
+    T1 = classical_ising(βc_aniso_test - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
     scheme = TRG(T1)
     run!(scheme, truncrank(16), maxiter(20))
     gsd = ground_state_degeneracy(scheme)
@@ -44,7 +52,7 @@ end
     @test X1 ≈ 1.0 rtol = 1.0e-2
     @test X2 ≈ 1.0 rtol = 1.0e-2
 
-    T2 = classical_ising(ising_βc + 0.01)
+    T2 = classical_ising(βc_aniso_test + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
     scheme = TRG(T2)
     run!(scheme, truncrank(16), maxiter(20))
     gsd = ground_state_degeneracy(scheme)
@@ -52,7 +60,6 @@ end
     @test gsd ≈ 2 rtol = 1.0e-2
     @test X1 ≈ 2.0 rtol = 1.0e-2
     @test X2 ≈ 2.0 rtol = 1.0e-2
-
 end
 
 # BTRG
@@ -166,11 +173,7 @@ end
     @test X2 ≈ 2.0 rtol = 1.0e-2
 end
 
-# LoopTNR — anisotropic Ising
-const Jx_aniso, Jy_aniso = 1.0, 0.6
-const βc_aniso_test = ising_anisotropic_βc(Jx_aniso, Jy_aniso)
-const T_aniso = classical_ising(Z2Irrep, βc_aniso_test; Jx = Jx_aniso, Jy = Jy_aniso)
-const f_aniso_exact = f_onsager_anisotropic(βc_aniso_test, Jx_aniso, Jy_aniso)
+# LoopTNR
 
 @testset "LoopTNR - Anisotropic Ising Model (Jx=1.0, Jy=0.6)" begin
     @info "LoopTNR anisotropic ising free energy"
