@@ -292,15 +292,15 @@ function elementary_modular_parameter(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
     # TODO: fermions
-    if BraidingStyle(sectortype(TA)) != Bosonic
+    if BraidingStyle(sectortype(TA)) != Bosonic()
         return complex(0.0, 1.0)
     end
     # leading eigenvalue of each transfer matrix
-    # corresponding to the Δ = s = 0 primary field
-    λv = _eigsolve_2x2_NtoS(TA, TB)
-    λh = _eigsolve_2x2_EtoW(TA, TB)
-    λa = _eigsolve_2x2_NEtoSW(TA, TB)
-    λb = _eigsolve_2x2_NWtoSE(TA, TB)
+    # corresponding to the Δ = s = 0 identity field
+    λv = real(_eigsolve_2x2_NtoS(TA, TB))
+    λh = real(_eigsolve_2x2_EtoW(TA, TB))
+    λa = real(_eigsolve_2x2_NEtoSW(TA, TB))
+    λb = real(_eigsolve_2x2_NWtoSE(TA, TB))
     # edge case: c = 0
     if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
         return complex(0.0, 1.0)
