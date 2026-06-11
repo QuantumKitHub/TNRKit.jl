@@ -21,13 +21,39 @@ function cft_finalize!(scheme)
     return CFTData(scheme)
 end
 
+"""
+Normalize the tensor, return the normalization factor and elementary modular parameter
+"""
+function tau_finalize!(scheme::TRG)
+    n = finalize!(scheme)
+    τ0 = TNRKit.elementary_modular_parameter(scheme.T)
+    return (n, τ0)
+end
+function tau_finalize!(scheme::LoopTNR)
+    n = finalize!(scheme)
+    τ0 = TNRKit.elementary_modular_parameter(scheme.TA, scheme.TB)
+    return (n, τ0)
+end
+
 # TRG
-@testset "TRG - Anisotropic Ising Model (Jx=1.0, Jy=0.6)" begin
+@testset "TRG - Anisotropic Ising Model" begin
+    @info "Anisotropy: Jx = 1.0, Jy = 0.6"
     @info "TRG anisotropic ising free energy"
     scheme = TRG(T_aniso)
-    data = run!(scheme, truncrank(24), maxiter(25))
+    elt = scalartype(T_aniso)
+    finalizer = Finalizer(tau_finalize!, Tuple{elt, complex(elt)})
+    data = run!(scheme, truncrank(24), maxiter(25), finalizer)
 
-    @test free_energy(data, βc_aniso_test) ≈ f_aniso_exact rtol = 2.0e-6
+    ns = map(Base.Fix2(getindex, 1), data)
+    @test free_energy(ns, βc_aniso_test) ≈ f_aniso_exact rtol = 2.0e-6
+
+    @info "TRG τ transformation"
+    f_trg(τ) = (τ - 1) / (τ + 1)
+    τs = map(Base.Fix2(getindex, 2), data)
+    for n in 5:7
+        @test τs[n + 1] ≈ f_trg(τs[n]) rtol = 5.0e-2
+    end
+    @info "τ → (τ - 1) / (τ + 1) verified from steps 5 to 8"
 
     @info "TRG anisotropic ising CFT data — shape [1, 1, 0]"
     scheme = TRG(T_aniso)
@@ -39,7 +65,6 @@ end
 
     @test cft_sorted[1] ≈ ising_cft_exact[1] rtol = 5.0e-4
     @test cft_sorted[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
-
     @info "Obtained scaling dimensions: Δ₁ = $(cft_sorted[1]), Δ₂ = $(cft_sorted[2])"
 
     @info "TRG anisotropic ising ground state degeneracy"
@@ -175,7 +200,8 @@ end
 
 # LoopTNR
 
-@testset "LoopTNR - Anisotropic Ising Model (Jx=1.0, Jy=0.6)" begin
+@testset "LoopTNR - Anisotropic Ising Model" begin
+    @info "Anisotropy: Jx = 1.0, Jy = 0.6"
     @info "LoopTNR anisotropic ising free energy"
     scheme = LoopTNR(T_aniso)
 

@@ -41,7 +41,7 @@ end
 # one-site unitcell
 function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
-        τ0 = elementary_modular_parameter(T, T)
+        τ0 = elementary_modular_parameter(T)
         Δs = _scaling_dimensions(T, τ0)
         return CFTData(missing, τ0, StructuredVector(Δs, Dict([Trivial => collect(eachindex(Δs))])))
     else
@@ -284,10 +284,15 @@ end
 # ============================
 # TODO: one-tensor version
 """
+    elementary_modular_parameter(T::TensorMap{E, S, 2, 2}) where {E, S}    
     elementary_modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
 
 Extract the elementary modular parameter of one tensor from 2x2 transfer matrices.
+As a by-product, the central charge is also calculated and returned.
 """
+function elementary_modular_parameter(T::TensorMap{E, S, 2, 2}) where {E, S}
+    return elementary_modular_parameter(T, T)
+end
 function elementary_modular_parameter(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
