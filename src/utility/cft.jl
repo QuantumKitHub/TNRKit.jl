@@ -396,7 +396,7 @@ sigmoid(x) = 1 / (1 + exp(-x))
 logit(p) = log(p / (1 - p))
 
 """
-    solve_cvtheta(a1, a2, a3; c0=0.5, v0=1.0, θ0=π/2)
+    solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
 
 Solve for positive (c, v) and θ ∈ (0, π) from the three equations:
 
@@ -407,22 +407,20 @@ Solve for positive (c, v) and θ ∈ (0, π) from the three equations:
 Returns `(c, v, θ)`.
 """
 function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
-    # Work in unconstrained coords to keep variables in their natural domain.
-    #   c = exp(xc)        →  c > 0
-    #   v = exp(xv)        →  v > 0
-    #   θ = π * σ(xθ)      →  θ ∈ (0, π)
     function f!(du, u, p)
         xc, xv, xθ = u
-        c = exp(xc)
-        v = exp(xv)
-        θ = π * sigmoid(xθ)
+        # Work in unconstrained coords to keep variables in their natural domain
+        c = exp(xc)         # make c > 0
+        v = exp(xv)         # make v > 0
+        θ = π * sigmoid(xθ) # make θ ∈ (0, π)
 
         sinθ = sin(θ)
         cosθ = cos(θ)
 
         du[1] = (1 / v - v) * c * sinθ - a1
         du[2] = (v / (1 + v^2 - 2v * cosθ) - v) * c * sinθ - a2
-        return du[3] = (v / (1 + v^2 + 2v * cosθ) - v) * c * sinθ - a3
+        du[3] = (v / (1 + v^2 + 2v * cosθ) - v) * c * sinθ - a3
+        return nothing
     end
 
     # Initial guess in unconstrained space
@@ -431,7 +429,7 @@ function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
     sol = solve(prob, NewtonRaphson(; autodiff = AutoForwardDiff()))
 
     if !SciMLBase.successful_retcode(sol)
-        @warn "Solver did not converge" retcode = sol.retcode residuals = sol.residuals
+        @warn "Solver did not converge" retcode = sol.retcode resid = sol.resid
     end
 
     xc, xv, xθ = sol.u
