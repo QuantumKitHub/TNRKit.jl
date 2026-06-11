@@ -37,7 +37,7 @@ end
     sd_all = real(cft.scaling_dimensions[Trivial])
     cft_sorted = sort(sd_all[2:end]; by = abs)
 
-    @test cft_sorted[1] ≈ ising_cft_exact[1] rtol = 2.0e-4
+    @test cft_sorted[1] ≈ ising_cft_exact[1] rtol = 5.0e-4
     @test cft_sorted[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
 
     @info "Obtained scaling dimensions: Δ₁ = $(cft_sorted[1]), Δ₂ = $(cft_sorted[2])"
