@@ -202,6 +202,25 @@ end
         @test d_σ ≈ ising_cft_exact[1] rtol = 5.0e-4
         @test d_ε ≈ ising_cft_exact[2] rtol = 5.0e-4
         @test cft.central_charge ≈ 0.5 rtol = 5.0e-3
+        # conformal spins: only [1, 4, 1] (x=1) resolves them
+        if shape == [1, 4, 1]
+            sd = cft.scaling_dimensions
+            # σ (Z₂ odd, first state): s = 0
+            s_σ = -imag(sd[Z2Irrep(1)][1])
+            @test abs(s_σ) < 1.0e-6
+            # ε (Z₂ even, second state): s = 0
+            s_ε = -imag(sd[Z2Irrep(0)][2])
+            @test abs(s_ε) < 1.0e-6
+            # all spins in the low-lying spectrum should be integer
+            for sector in keys(sd)
+                for v in sd[sector]
+                    Δ, s = real(v), -imag(v)
+                    Δ > 2.5 && break  # check only low-lying states
+                    @test isapprox(s, round(s); atol = 1.0e-4)
+                end
+            end
+            @info "Conformal spins are integer-valued."
+        end
     end
 
     for shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]]
