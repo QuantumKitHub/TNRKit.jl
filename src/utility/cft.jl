@@ -100,7 +100,9 @@ end
 The "canonical" normalization constant for loop-TNR tensors,
 which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
 """
-function area_term(TA, TB; is_real = true)
+function area_term(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; is_real = true
+    ) where {E, S}
     function f0(x)
         @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
         @plansor ffx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
@@ -129,7 +131,10 @@ Internal function to construct transfer matrices and extract conformal data.
 - `τ0`:     Elementary modular parameter of one tensor.
 - `Nh`:     Number of eigenvalues to solve for per sector (default 25).
 """
-function spec(TA::TensorMap, TB::TensorMap, shape::Vector{<:Number}, τ0::Number; Nh = 25)
+function spec(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2},
+        shape::Vector{<:Number}, τ0::Number; Nh = 25
+    ) where {E, S}
     I = sectortype(TA)
     𝔽 = field(TA)
     if BraidingStyle(I) != Bosonic()
@@ -206,9 +211,9 @@ function spec(TA::TensorMap, TB::TensorMap, shape::Vector{<:Number}, τ0::Number
 end
 
 function MPO_opt(
-        TA::TensorMap, TB::TensorMap, trunc::TruncationStrategy,
-        truncentanglement::TruncationStrategy
-    )
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2},
+        trunc::TruncationStrategy, truncentanglement::TruncationStrategy
+    ) where {E, S}
     pretrunc = truncrank(2 * trunc.howmany)
     dl, ur = SVD12(TA, pretrunc)
     dr, ul = SVD12(transpose(TB, ((2, 4), (1, 3))), pretrunc)
@@ -238,7 +243,9 @@ end
 When the elementary modular parameter for TA, TB is `τ`,
 the transfer matrix has `τ_TM = (1 + τ) / 2 / (1 - τ)`.
 """
-function MPO_action_2gates(TA::TensorMap, TB::TensorMap, x::TensorMap)
+function MPO_action_2gates(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
+    ) where {E, S}
     @tensor fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
     @tensor ffx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] *
         TA[-1 -2; 4 1]
@@ -249,7 +256,9 @@ end
 When the elementary modular parameter for TA, TB is `τ`,
 the transfer matrix has `τ_TM = τ / 4`.
 """
-function MPO_action_1x4(TA::TensorMap, TB::TensorMap, x::TensorMap)
+function MPO_action_1x4(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
+    ) where {E, S}
     @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] * TA[41 -1; 1 12] *
         TB[12 -2; 2 23] *
         TA[23 -3; 3 34] * TB[34 -4; 4 41]
@@ -260,7 +269,9 @@ end
 When the elementary modular parameter for TA, TB is `τ`,
 the transfer matrix has `τ_TM = (τ + 1) / 4`.
 """
-function MPO_action_1x4_twist(TA::TensorMap, TB::TensorMap, x::TensorMap)
+function MPO_action_1x4_twist(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
+    ) where {E, S}
     TTTTx = MPO_action_1x4(TA, TB, x)
     return permute(TTTTx, ((2, 3, 4, 1), (5,)))
 end
@@ -270,9 +281,10 @@ This renormalization will change the elementary
 modular parameter from τ to (τ - 1) / 2.
 """
 function reduced_MPO(
-        dl::TensorMap, ur::TensorMap, ul::TensorMap, dr::TensorMap,
+        dl::TensorMap{E, S, 1, 2}, ur::TensorMap{E, S, 1, 2},
+        ul::TensorMap{E, S, 1, 2}, dr::TensorMap{E, S, 1, 2},
         trunc::TruncationStrategy
-    )
+    ) where {E, S}
     @plansor temp[-1 -2; -3 -4] :=
         ur[-1; 1 4] * ul[4; 3 -2] * dr[-3; 2 1] * dl[2; -4 3]
     D, U = SVD12(temp, trunc)
@@ -317,7 +329,9 @@ function elementary_modular_parameter(
     return v * cis(θ)
 end
 
-function _eigsolve_2x2_NtoS(TA, TB)
+function _eigsolve_2x2_NtoS(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
     function f0(x)
         @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
         @plansor fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
@@ -332,13 +346,17 @@ function _eigsolve_2x2_NtoS(TA, TB)
     return first(spec0)
 end
 
-function _eigsolve_2x2_EtoW(TA, TB)
+function _eigsolve_2x2_EtoW(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
     TA′ = permute(TA, ((3, 1), (4, 2)))
     TB′ = permute(TB, ((3, 1), (4, 2)))
     return _eigsolve_2x2_NtoS(TB′, TA′)
 end
 
-function _eigsolve_2x2_NEtoSW(TA, TB)
+function _eigsolve_2x2_NEtoSW(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
     #= 
         1   2
         ┌---┬---┐
@@ -365,7 +383,9 @@ function _eigsolve_2x2_NEtoSW(TA, TB)
     return first(spec0)
 end
 
-function _eigsolve_2x2_NWtoSE(TA, TB)
+function _eigsolve_2x2_NWtoSE(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
     TA′ = permute(TA, ((2, 4), (1, 3)))
     TB′ = permute(TB, ((2, 4), (1, 3)))
     return _eigsolve_2x2_NEtoSW(TB′, TA′)
