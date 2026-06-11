@@ -209,27 +209,37 @@ end
         sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
         truncentanglement = trunctol(atol = 1.0e-12)
     )
-
+    elt = scalartype(T_aniso)
+    finalizer = Finalizer(tau_finalize!, Tuple{elt, complex(elt)})
     data = run!(
-        scheme, truncrank(8), maxiter(25), loop_condition
+        scheme, truncrank(8), maxiter(25), loop_condition, finalizer
     )
 
-    @test free_energy(data, βc_aniso_test) ≈ f_aniso_exact rtol = 1.0e-6
+    ns = map(Base.Fix2(getindex, 1), data)
+    @test free_energy(ns, βc_aniso_test) ≈ f_aniso_exact rtol = 1.0e-6
+
+    @info "LoopTNR τ transformation"
+    f_looptnr(τ) = (1 + τ) / (1 - τ)
+    τs = map(Base.Fix2(getindex, 2), data)
+    for n in 5:7
+        @test τs[n + 1] ≈ f_looptnr(τs[n]) rtol = 2.0e-2
+    end
+    @info "τ → (1 + τ) / (1 - τ) verified from steps 5 to 8"
 
     @info "LoopTNR anisotropic ising CFT data"
     scheme = LoopTNR(T_aniso)
     run!(scheme, truncrank(12), maxiter(10))
 
-    for shape in [[1, 4, 1], [sqrt(2), 2 * sqrt(2), 0]]
-        cft = CFTData(scheme; shape = shape)
+    for shape in ("[1, 4, 1]", "[√2, 2√2, 0]")
+        cft = CFTData(scheme; shape = eval(Meta.parse(shape)))
         d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
         d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
-        @info "Shape $shape:  Δ(σ) = $d_σ,  Δ(ε) = $d_ε,  c = $(cft.central_charge)"
+        @info "Shape $shape: Δ(σ) = $d_σ, Δ(ε) = $d_ε, c = $(cft.central_charge)"
         @test d_σ ≈ ising_cft_exact[1] rtol = 5.0e-4
         @test d_ε ≈ ising_cft_exact[2] rtol = 5.0e-4
         @test cft.central_charge ≈ 0.5 rtol = 5.0e-3
         # conformal spins: only [1, 4, 1] (x=1) resolves them
-        if shape == [1, 4, 1]
+        if shape == "[1, 4, 1]"
             sd = cft.scaling_dimensions
             # σ (Z₂ odd, first state): s = 0
             s_σ = -imag(sd[Z2Irrep(1)][1])
@@ -249,9 +259,9 @@ end
         end
     end
 
-    for shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]]
+    for shape in ("[1, 8, 1]", "[4/√10, 2√10, 2/√10]")
         cft = CFTData(
-            scheme; shape = shape, trunc = truncrank(16),
+            scheme; shape = eval(Meta.parse(shape)), trunc = truncrank(16),
             truncentanglement = trunctol(atol = 1.0e-10)
         )
         d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
