@@ -91,7 +91,7 @@ function ising_chain(
     gate = exp(dt * J * gate)
     return gate_to_tensor(gate)
 end
-ising_chain(elt::Type{<:Number}, ϵ::Float64; kwargs...) =
-    ising_chain(elt, Trivial, ϵ; kwargs...)
-ising_chain(symm::Type{<:Sector}, ϵ::Float64; kwargs...) =
-    ising_chain(ComplexF64, symm, ϵ; kwargs...)
+ising_chain(elt::Type{<:Number}, dt::Float64; kwargs...) =
+    ising_chain(elt, Trivial, dt; kwargs...)
+ising_chain(symm::Type{<:Sector}, dt::Float64; kwargs...) =
+    ising_chain(ComplexF64, symm, dt; kwargs...)
