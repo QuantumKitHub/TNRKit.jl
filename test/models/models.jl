@@ -175,3 +175,25 @@ end
     order_para = data[end][4] / data[end][1]
     @test order_para ≈ 0.0 atol = 1.0e-3
 end
+
+# (1 + 1)D quantum chains
+@testset "Quantum Ising chain: $stack_alg stacking" for stack_alg in (:exponential, :linear)
+    trunc_stack = truncerror(; rtol = 1.0e-9) & truncrank(16)
+    if stack_alg == :exponential
+        nfold = 7
+        dt = 1 / (2^nfold)
+        T = ising_chain(Float64, Z2Irrep, dt; J = 1.0, g = 1.0)
+        T = vertical_stack_exp(T, nfold, trunc_stack)
+    else
+        n = 100
+        dt = 1 / n
+        T = ising_chain(Float64, Z2Irrep, dt; J = 1.0, g = 1.0)
+        T = vertical_stack_linear(T, n, trunc_stack)
+    end
+    scheme = LoopTNR(T)
+    data = run!(scheme, truncrank(16), maxiter(16))
+    cft = CFTData(scheme)
+    central_charge = cft.central_charge
+    @test central_charge ≈ 0.5 atol = 1.0e-2
+    @info "Obtained central charge:\n$central_charge."
+end
