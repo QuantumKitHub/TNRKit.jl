@@ -103,10 +103,9 @@ which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
 function area_term(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; is_real = true
     ) where {E, S}
-    function f0(x)
-        @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        @plansor ffx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
-        return ffx
+    f0(x) = @tensor begin
+        fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
@@ -246,10 +245,11 @@ the transfer matrix has `τ_TM = (1 + τ) / 2 / (1 - τ)`.
 function MPO_action_2gates(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
     ) where {E, S}
-    @tensor fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
-    @tensor ffx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] *
-        TA[-1 -2; 4 1]
-    return permute(ffx, ((2, 3, 4, 1), (5,)))
+    @tensor begin
+        fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
+        fx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] * TA[-1 -2; 4 1]
+    end
+    return permute(fx, ((2, 3, 4, 1), (5,)))
 end
 
 """
@@ -259,10 +259,8 @@ the transfer matrix has `τ_TM = τ / 4`.
 function MPO_action_1x4(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
     ) where {E, S}
-    @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] * TA[41 -1; 1 12] *
-        TB[12 -2; 2 23] *
-        TA[23 -3; 3 34] * TB[34 -4; 4 41]
-    return TTTTx
+    return @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] *
+        TA[41 -1; 1 12] * TB[12 -2; 2 23] * TA[23 -3; 3 34] * TB[34 -4; 4 41]
 end
 
 """
@@ -332,10 +330,9 @@ end
 function _eigsolve_2x2_NtoS(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
-    function f0(x)
-        @plansor fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        @plansor fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
-        return fx
+    f0(x) = @tensor begin
+        fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
@@ -367,12 +364,11 @@ function _eigsolve_2x2_NEtoSW(
         |   |
         1'  2'
     =#
-    function f0(x)
-        @plansor fx[-1 -2 -3 -4] := TB[-2 -3; a b] * x[-1 a b -4]
-        @plansor fx[-1 -2 -3 -4] := TA[-1 -2; a b] * fx[a b -3 -4]
-        @plansor fx[-1 -2 -3 -4] := TA[-3 -4; a b] * fx[-1 -2 a b]
-        @plansor fx[-1 -2 -3 -4] := TB[-4 -1; a b] * fx[-3 a b -2]
-        return fx
+    f0(x) = @tensor begin
+        fx[-1 -2 -3 -4] := TB[-2 -3; a b] * x[-1 a b -4]
+        fx[-1 -2 -3 -4] := TA[-1 -2; a b] * fx[a b -3 -4]
+        fx[-1 -2 -3 -4] := TA[-3 -4; a b] * fx[-1 -2 a b]
+        fx[-1 -2 -3 -4] := TB[-4 -1; a b] * fx[-3 a b -2]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1) ⊗ domain(TB, 2) ⊗ domain(TA, 2))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
