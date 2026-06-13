@@ -27,12 +27,12 @@ Normalize the tensor, return the normalization factor and elementary modular par
 """
 function tau_finalize!(scheme::TRG)
     n = finalize!(scheme)
-    τ0 = TNRKit.elementary_modular_parameter(scheme.T)
+    τ0, c = extract_tau_and_c(scheme.T)
     return (n, τ0)
 end
 function tau_finalize!(scheme::LoopTNR)
     n = finalize!(scheme)
-    τ0 = TNRKit.elementary_modular_parameter(scheme.TA, scheme.TB)
+    τ0, c = extract_tau_and_c(scheme.TA, scheme.TB)
     return (n, τ0)
 end
 

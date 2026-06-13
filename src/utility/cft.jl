@@ -9,14 +9,14 @@ A struct to hold conformal data extracted from a TNR scheme.
     CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; kwargs...)
 
 # Fields
-    - `central_charge::Union{E, Missing}`: The central charge of the CFT. Will be `nothing` if not calculated.
-    - `modular_parameter::E`: The elementary modular parameter of a square patch of the lattice network.
+    - `central_charge::E`: The central charge of the CFT.
+    - `modular_parameter::E`: The elementary modular parameter of a single tensor.
     - `scaling_dimensions::StructuredVector{E, K, V, A}`: The scaling dimensions of the CFT, organized in a `StructuredVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
 
 """
 struct CFTData{E, K, V, A <: AbstractVector{E}}
-    "Central charge of the CFT. Will be `missing` if not calculated."
-    central_charge::Union{E, Missing}
+    "Central charge of the CFT."
+    central_charge::E
     "Elementary modular parameter for one tensor"
     modular_parameter::E
     "Scaling dimensions of the CFT."
@@ -41,9 +41,9 @@ end
 # one-site unitcell
 function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
-        τ0 = elementary_modular_parameter(T)
+        τ0, c = extract_tau_and_c(T)
         Δs = _scaling_dimensions(T, τ0)
-        return CFTData(missing, τ0, StructuredVector(Δs, Dict([Trivial => collect(eachindex(Δs))])))
+        return CFTData(complex(c), τ0, StructuredVector(Δs, Dict([Trivial => collect(eachindex(Δs))])))
     else
         CFTData(T, T; shape, kwargs...)
     end
@@ -56,7 +56,7 @@ function CFTData(
     ) where {E, S}
     norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
     TA′, TB′ = TA / norm_const, TB / norm_const
-    τ0 = elementary_modular_parameter(TA′, TB′)
+    τ0, = extract_tau_and_c(TA′, TB′)
     if shape == [1, 1, 0]
         throw(ArgumentError("The shape [1, 1, 0] is not compatible with a two-site unit cell."))
     elseif (shape ≈ [sqrt(2), 2 * sqrt(2), 0]) || (shape == [1, 4, 1]) # these shapes need no truncation
@@ -104,8 +104,9 @@ function area_term(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; is_real = true
     ) where {E, S}
     f0(x) = @tensor begin
-        fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
+        # for fermions, use APBC (NS) sector
+        fx[-1 -2] := twist(TA, 1)[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        fx[-1 -2] := twist(TB, 1)[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
@@ -290,26 +291,20 @@ function reduced_MPO(
     return translate
 end
 
-# Elementary modular parameter
-# ============================
-# TODO: one-tensor version
+# Modular parameter and central charge
+# ====================================
 """
-    elementary_modular_parameter(T::TensorMap{E, S, 2, 2}) where {E, S}    
-    elementary_modular_parameter(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
+    extract_tau_and_c(T::TensorMap{E, S, 2, 2}) where {E, S}
+    extract_tau_and_c(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
 
-Extract the elementary modular parameter of one tensor from 2x2 transfer matrices.
-As a by-product, the central charge is also calculated and returned.
+Compute the modular parameter τ of one tensor and the central charge c.
 """
-function elementary_modular_parameter(T::TensorMap{E, S, 2, 2}) where {E, S}
-    return elementary_modular_parameter(T, T)
+function extract_tau_and_c(T::TensorMap{E, S, 2, 2}) where {E, S}
+    return extract_tau_and_c(T, T)
 end
-function elementary_modular_parameter(
+function extract_tau_and_c(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
-    # TODO: fermions
-    if BraidingStyle(sectortype(TA)) != Bosonic()
-        return complex(0.0, 1.0)
-    end
     # leading eigenvalue of each transfer matrix
     # corresponding to the Δ = s = 0 identity field
     λv = real(_eigsolve_2x2_NtoS(TA, TB))
@@ -318,28 +313,28 @@ function elementary_modular_parameter(
     λb = real(_eigsolve_2x2_NWtoSE(TA, TB))
     # edge case: c = 0
     if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
-        return complex(0.0, 1.0)
+        return complex(0.0, 1.0), 0.0
     end
     # when c ≠ 0
     a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
     # c here is actually π c / 6
     c, v, θ = solve_cvtheta(a1, a2, a3)
-    return v * cis(θ)
+    return v * cis(θ), 6 * c / pi
 end
 
 function _eigsolve_2x2_NtoS(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
     f0(x) = @tensor begin
-        fx[-1 -2] := TA[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        fx[-1 -2] := TB[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
+        # for fermions, use APBC (NS) sector
+        fx[-1 -2] := twist(TA, 1)[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
+        fx[-1 -2] := twist(TB, 1)[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
     end
-    # TODO: for fermions
     return first(spec0)
 end
 
@@ -365,17 +360,17 @@ function _eigsolve_2x2_NEtoSW(
         1'  2'
     =#
     f0(x) = @tensor begin
+        # for fermions, use APBC (NS) sector
         fx[-1 -2 -3 -4] := TB[-2 -3; a b] * x[-1 a b -4]
         fx[-1 -2 -3 -4] := TA[-1 -2; a b] * fx[a b -3 -4]
-        fx[-1 -2 -3 -4] := TA[-3 -4; a b] * fx[-1 -2 a b]
-        fx[-1 -2 -3 -4] := TB[-4 -1; a b] * fx[-3 a b -2]
+        fx[-1 -2 -3 -4] := twist(TA, 2)[-3 -4; a b] * fx[-1 -2 a b]
+        fx[-1 -2 -3 -4] := twist(TB, 2)[-4 -1; a b] * fx[-3 a b -2]
     end
     x0 = ones(domain(TA, 1) ⊗ domain(TB, 1) ⊗ domain(TB, 2) ⊗ domain(TA, 2))
     spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
     if info.converged == 0
         @warn "The area term eigensolver did not converge."
     end
-    # TODO: for fermions
     return first(spec0)
 end
 
