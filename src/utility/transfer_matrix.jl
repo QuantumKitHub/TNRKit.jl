@@ -9,14 +9,11 @@ matrix as a linear map to the input tensor `x`.
 
 !!! note
     `TA` and `TB` are **not** necessarily the original tensors in the network.
-    For shapes that require a renormalization step (e.g. `[1, 8, 1]` or
-    `[4/√10, 2√10, 2/√10]`), the constructor performs one step of MPO
-    disentangling and the stored tensors are the renormalized ones.  The
-    `shape` field always labels the *tube geometry*, which determines the
-    contraction pattern and modular parameter; it does not change after
-    renormalization — the same shape dispatches to the correct reduced action
-    (e.g. `[1, 8, 1]` uses the `[1, 4, 0]`-style 1×4 contraction under the
-    hood).
+    For transfer matrices with a large shapes (e.g. `[1, 8, 1]`), the constructor
+    performs a renormalization of the original tensors and stores the renormalized
+    tensors instead, so that its action on `x` can be the same as the action of a
+    simpler transfer matrix (e.g. `[1, 8, 1]` action in terms of the renormalized
+    tensors is the same as `[1, 4, 0]`).
 
 # Fields
 - `TA::TensorMap{E, S, 2, 2}`: First tensor in the transfer matrix (may be
@@ -284,9 +281,7 @@ function leading_eigenvalue(tm::CFTTransferMatrix{E, S}, charge; Nh::Int = 1) wh
     I = sectortype(tm.TA)
     V = (I == Trivial) ? field(tm.TA)^1 : Vect[I](charge => 1)
     x = ones(domain(tm) ← V)
-    if dim(x) == 0
-        error("$charge is not allowed by the transfer matrix.")
-    end
+    dim(x) != 0 || error("$charge is not allowed by the transfer matrix.")
     spec, _, info = eigsolve(
         tm, x, Nh, :LM; krylovdim = 40, maxiter = 100, tol = 1.0e-12, verbosity = 0
     )
