@@ -47,6 +47,12 @@ end
 
 TensorKit.sectortype(::CFTTransferMatrix{E, S}) where {E, S} = sectortype(S)
 
+# reusable shape groups
+const _SHAPES_140 = ([1, 4, 0], [1, 8, 1])
+const _SHAPES_2gates = ([sqrt(2), 2 * sqrt(2), 0], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)])
+
+_has_shape(tm, shapes) = any(s -> tm.shape ≈ s, shapes)
+
 # ===========================================================================
 #  Transfer matrix action as a linear map
 # ===========================================================================
@@ -58,19 +64,19 @@ end
 
 # Dispatch the action on the shape
 function _TMaction(tm::CFTTransferMatrix{E, S}, x) where {E, S}
-    if tm.shape ≈ [2, 2, 0]
+    if tm.shape ≈ [1, 2, 1]
+        return _TMaction_1x2_NtoS(tm, x)
+    elseif tm.shape ≈ [2, 2, 0]
         return _TMaction_2x2_NtoS(tm, x)
     elseif tm.shape ≈ [sqrt(2) / 2, sqrt(2), sqrt(2) / 2]
         return _TMaction_2x2_NEtoSW(tm, x)
-    elseif tm.shape ≈ [1, 4, 0]
-        return _TMaction_1x4(tm.TA, tm.TB, x)
+    elseif tm.shape ≈ [sqrt(2), sqrt(2), 0]
+        return _TMaction_2x1_NEtoSW(tm, x)
     elseif tm.shape ≈ [1, 4, 1]
         return _TMaction_1x4_twist(tm.TA, tm.TB, x)
-    elseif tm.shape ≈ [sqrt(2), 2 * sqrt(2), 0]
-        return _TMaction_2gates(tm.TA, tm.TB, x)
-    elseif tm.shape ≈ [1, 8, 1]
+    elseif _has_shape(tm, _SHAPES_140)
         return _TMaction_1x4(tm.TA, tm.TB, x)
-    elseif tm.shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
+    elseif _has_shape(tm, _SHAPES_2gates)
         return _TMaction_2gates(tm.TA, tm.TB, x)
     else
         error("Unsupported transfer matrix shape: $(tm.shape).")
@@ -78,55 +84,117 @@ function _TMaction(tm::CFTTransferMatrix{E, S}, x) where {E, S}
 end
 
 """
+Action of [1, 2, 1] transfer matrix.
+```
+        1   2
+    ┌---|---|---┐
+    └---A---B---┘
+    ┌---|---┘
+    1'  2'
+```
+"""
+function _TMaction_1x2_NtoS(tm::CFTTransferMatrix{E, S}, x) where {E, S}
+    @tensor fx[-1 -2; -3] :=
+        tm.TA[a -2; 1 b] * twist(tm.TB, (2, 4))[b -1; 2 a] * x[1 2; -3]
+    return fx
+end
+
+"""
 Action of [2, 2, 0] transfer matrix.
+```
+        1   2
+    ┌---|---|---┐
+    └---A---B---┘
+    ┌---|---|---┐
+    └---B---A---┘
+        |   |
+        1'  2'
+```
 """
 function _TMaction_2x2_NtoS(tm::CFTTransferMatrix{E, S}, x) where {E, S}
     @tensor begin
-        fx[-1 -2; 5] := twist(tm.TA, 1)[c -1; 1 m] * x[1 2; 5] * tm.TB[m -2; 2 c]
-        fx[-1 -2; 5] := twist(tm.TB, 1)[c -1; 1 m] * fx[1 2; 5] * tm.TA[m -2; 2 c]
+        fx[-1 -2; -3] := twist(tm.TA, 1)[c -1; 1 m] * x[1 2; -3] * tm.TB[m -2; 2 c]
+        fx[-1 -2; -3] := twist(tm.TB, 1)[c -1; 1 m] * fx[1 2; -3] * tm.TA[m -2; 2 c]
     end
     return fx
 end
 
 """
 Action of [√2/2, √2, √2/2] transfer matrix.
-"""
-function _TMaction_2x2_NEtoSW(tm::CFTTransferMatrix{E, S}, x) where {E, S}
-    #=
+```
         1   2
-        ┌---┬---┐
-        |   |   |
-    3'--A---B---┤ 3
-        |   |   |
-    4'--B---A---┘ 4
+        |   |
+    3'--A---B---3
+        |   |
+    4'--B---A---4
         |   |
         1'  2'
-    =#
+```
+"""
+function _TMaction_2x2_NEtoSW(tm::CFTTransferMatrix{E, S}, x) where {E, S}
     @tensor begin
-        fx[-1 -2 -3 -4; 5] := tm.TB[-2 -3; a b] * x[-1 a b -4; 5]
-        fx[-1 -2 -3 -4; 5] := tm.TA[-1 -2; a b] * fx[a b -3 -4; 5]
-        fx[-1 -2 -3 -4; 5] := twist(tm.TA, 2)[-3 -4; a b] * fx[-1 -2 a b; 5]
-        fx[-1 -2 -3 -4; 5] := twist(tm.TB, 2)[-4 -1; a b] * fx[-3 a b -2; 5]
+        fx[-1 -2 -3 -4; -5] := tm.TB[-2 -3; a b] * x[-1 a b -4; -5]
+        fx[-1 -2 -3 -4; -5] := tm.TA[-1 -2; a b] * fx[a b -3 -4; -5]
+        fx[-1 -2 -3 -4; -5] := twist(tm.TA, 2)[-3 -4; a b] * fx[-1 -2 a b; -5]
+        fx[-1 -2 -3 -4; -5] := twist(tm.TB, 2)[-4 -1; a b] * fx[-3 a b -2; -5]
     end
     return fx
 end
 
 """
-Action of [√2, 2√2, 0] transfer matrix, shown in Fig. 25 of https://arxiv.org/pdf/2311.18785. 
+Action of [√2, √2, 0] transfer matrix
+```
+        1
+        |
+    ┌---A---2
+    └---|---┐
+    2'--B---┘
+        |
+        1'
+```
+"""
+function _TMaction_2x1_NEtoSW(tm::CFTTransferMatrix{E, S}, x) where {E, S}
+    @tensor begin
+        fx[-1 -2; -3] := tm.TA[-1 -2; a b] * x[a b; -3]
+        fx[-1 -2; -3] := twist(tm.TB, (2, 4))[-2 -1; b a] * fx[a b; -3]
+    end
+    return fx
+end
+
+"""
+Action of [√2, 2√2, 0] transfer matrix
+(see Fig. 25 of https://arxiv.org/pdf/2311.18785)
+```
+    1   2   3   4
+    |   |   |   |
+    ├-B-┤   ├-B-┤
+    └---------------┐
+        ├-A-┤   ├-A-┤
+    ┌---------------┘
+    |   |   |   |
+    1'  2'  3'  4'
+```
 First appeared in Chenfeng Bao's thesis: http://hdl.handle.net/10012/14674.
 """
 function _TMaction_2gates(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
     ) where {E, S}
     @tensor begin
-        fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
-        fx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] * TA[-1 -2; 4 1]
+        fx[-1 -2 -3 -4; -5] := TB[-1 -2; 1 2] * x[1 2 3 4; -5] * TB[-3 -4; 3 4]
+        fx[-1 -2 -3 -4; -5] := TA[-3 -4; 2 3] * fx[1 2 3 4; -5] * TA[-1 -2; 4 1]
     end
     return permute(fx, ((2, 3, 4, 1), (5,)))
 end
 
 """
-Action of [1, 4, 0] transfer matrix.
+Action of [1, 4, 0] transfer matrix. Only valid when TA = TB.
+```
+        1   2   3   4
+    ┌---|---|---|---|---┐
+    └---A---B---A---B---┘
+        |   |   |   |
+        1'  2'  3'  4'
+```
 """
 function _TMaction_1x4(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
@@ -137,6 +205,13 @@ end
 
 """
 Action of [1, 4, 1] transfer matrix.
+```
+        1   2   3   4
+    ┌---|---|---|---|---┐
+    └---A---B---A---B---┘
+    ┌---|---|---|---┘
+    1'  2'  3'  4'
+```
 """
 function _TMaction_1x4_twist(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
@@ -193,13 +268,17 @@ end
 #  Domain space
 # ===========================================================================
 function TensorKit.domain(tm::CFTTransferMatrix{E, S}) where {E, S}
-    if tm.shape ≈ [2, 2, 0]
+    if tm.shape ≈ [1, 2, 1]
+        return domain(tm.TA, 1) ⊗ domain(tm.TB, 1)
+    elseif tm.shape ≈ [2, 2, 0]
         return domain(tm.TA, 1) ⊗ domain(tm.TB, 1)
     elseif tm.shape ≈ [sqrt(2) / 2, sqrt(2), sqrt(2) / 2]
         return domain(tm.TA, 1) ⊗ domain(tm.TB, 1) ⊗ domain(tm.TB, 2) ⊗ domain(tm.TA, 2)
-    elseif any(isapprox(tm.shape, shape) for shape in [[1, 4, 0], [1, 4, 1], [1, 8, 1]])
+    elseif tm.shape ≈ [sqrt(2), sqrt(2), 0]
+        return domain(tm.TA, 1) ⊗ domain(tm.TA, 2)
+    elseif tm.shape ≈ [1, 4, 1] || _has_shape(tm, _SHAPES_140)
         return domain(tm.TA)[1] ⊗ domain(tm.TB)[1] ⊗ domain(tm.TA)[1] ⊗ domain(tm.TB)[1]
-    elseif any(isapprox(tm.shape, shape) for shape in [[sqrt(2), 2 * sqrt(2), 0], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]])
+    elseif _has_shape(tm, _SHAPES_2gates)
         return domain(tm.TB) ⊗ domain(tm.TB)
     else
         error("Unsupported transfer matrix shape: $(tm.shape).")
@@ -216,7 +295,9 @@ Return the modular parameter `τ_TM` of the transfer matrix, given the
 elementary modular parameter `τ0` of the original tensor(s).
 """
 function modular_parameter(tm::CFTTransferMatrix, τ0::Number)
-    if tm.shape ≈ [2, 2, 0]
+    if tm.shape ≈ [1, 2, 0]
+        return (1 + τ0) / 2
+    elseif tm.shape ≈ [2, 2, 0]
         return τ0
     elseif tm.shape ≈ [sqrt(2) / 2, sqrt(2), sqrt(2) / 2]
         return 1 / (1 - τ0)
@@ -224,6 +305,8 @@ function modular_parameter(tm::CFTTransferMatrix, τ0::Number)
         return τ0 / 4
     elseif tm.shape ≈ [1, 4, 1]
         return (1 + τ0) / 4
+    elseif tm.shape ≈ [sqrt(2), sqrt(2), 0]
+        return (1 + τ0) / (1 - τ0)
     elseif tm.shape ≈ [sqrt(2), 2 * sqrt(2), 0]
         return (1 + τ0) / 2 / (1 - τ0)
     elseif tm.shape ≈ [1, 8, 1]

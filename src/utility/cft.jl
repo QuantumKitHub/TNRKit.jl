@@ -39,26 +39,29 @@ function CFTData(scheme::BTRG; kwargs...) # merge bond tensors into central tens
 end
 
 # one-site unitcell
-function CFTData(T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], kwargs...) where {E, S}
+function CFTData(
+        T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], fast_tau_alg::Bool = true, kwargs...
+    ) where {E, S}
     if shape == [1, 1, 0] # trivial implementation
-        τ0, c = extract_tau_and_c(T)
+        τ0, c = extract_tau_and_c(T; fast = fast_tau_alg)
         Δs = _scaling_dimensions(T, τ0)
         return CFTData(complex(c), τ0, StructuredVector(Δs, Dict([Trivial => collect(eachindex(Δs))])))
     else
-        CFTData(T, T; shape, kwargs...)
+        CFTData(T, T; shape, fast_tau_alg, kwargs...)
     end
 end
 
 # Main implementation, two-site unitcell
 function CFTData(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0],
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2};
+        shape = [sqrt(2), 2 * sqrt(2), 0], fast_tau_alg::Bool = true,
         trunc = truncrank(16), truncentanglement = trunctol(; rtol = 1.0e-14)
     ) where {E, S}
     norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
     TA′, TB′ = TA / norm_const, TB / norm_const
-    τ0, = extract_tau_and_c(TA′, TB′)
-    if shape == [1, 1, 0]
-        throw(ArgumentError("The shape [1, 1, 0] is not compatible with a two-site unit cell."))
+    τ0, = extract_tau_and_c(TA′, TB′; fast = fast_tau_alg)
+    if shape[1] ≈ 1 && shape[2] != 0 && shape[3] == 0
+        throw(ArgumentError("The shape [1, L, 0] is not compatible with a two-site unit cell."))
     else
         return spec(TA′, TB′, shape, τ0; trunc, truncentanglement)
     end
@@ -161,31 +164,46 @@ end
 
 # Modular parameter and central charge
 # ====================================
+
+# Utility functions
+sigmoid(x) = 1 / (1 + exp(-x))
+logit(p) = log(p / (1 - p))
+function _λ0(TA, TB, shape)
+    charge = one(sectortype(TA))
+    λs = leading_eigenvalue(CFTTransferMatrix(TA, TB, shape), charge; Nh = 1)
+    return real(first(λs))
+end
+
 """
-    extract_tau_and_c(T::TensorMap{E, S, 2, 2}) where {E, S}
-    extract_tau_and_c(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}) where {E, S}
+    extract_tau_and_c(T::TensorMap{E, S, 2, 2}; fast::Bool = true) where {E, S}
+    extract_tau_and_c(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; fast::Bool = true) where {E, S}
 
 Compute the modular parameter τ of one tensor and the central charge c.
+When `fast = true`, 1x2 transfer matrices are used, which runs faster but
+produced slightly less accurate result. Otherwise, 2x2 transfer matrices are used.
 """
-function extract_tau_and_c(T::TensorMap{E, S, 2, 2}) where {E, S}
-    return extract_tau_and_c(T, T)
+function extract_tau_and_c(T::TensorMap{E, S, 2, 2}; kwargs...) where {E, S}
+    return extract_tau_and_c(T, T; kwargs...)
 end
 function extract_tau_and_c(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; fast::Bool = true
+    ) where {E, S}
+    return fast ? _extract_tau_and_c_1x2(TA, TB) : _extract_tau_and_c_2x2(TA, TB)
+end
+
+function _extract_tau_and_c_1x2(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
-    I = sectortype(TA)
-    # shorthand: leading eigenvalue in the identity sector
-    _λ(TA, TB, shape) = real(first(leading_eigenvalue(CFTTransferMatrix(TA, TB, shape), one(I))))
-    shape1, p1 = [2, 2, 0], ((3, 1), (4, 2))
-    shape2, p2 = [sqrt(2) / 2, sqrt(2), sqrt(2) / 2], ((2, 4), (1, 3))
-    # N → S
-    λv = _λ(TA, TB, shape1)
-    # E → W
-    λh = _λ(permute(TB, p1), permute(TA, p1), shape1)
-    # NE → SW
-    λa = _λ(TA, TB, shape2)
-    # NW → SE
-    λb = _λ(permute(TB, p2), permute(TA, p2), shape2)
+    shape1, p1 = [1, 2, 1], ((3, 1), (4, 2))
+    shape2, p2 = [sqrt(2), sqrt(2), 0], ((4, 2), (3, 1))
+    # N → S: τ1 = (1 + τ) / 2
+    λv = _λ0(TA, TB, shape1)
+    # E → W: τ2 = (τ - 1) / (2 τ)
+    λh = _λ0(permute(TB, p1), permute(TA, p1), shape1)
+    # NE → SW: τ3 = (1 + τ) / (1 - τ)
+    λa = _λ0(TA, TB, shape2)
+    # NW → SE: τ4 = (τ - 1) / (τ + 1)
+    λb = _λ0(permute(TB, p2), permute(TA, p2), shape2)
     # edge case: c = 0
     if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
         return complex(0.0, 1.0), 0.0
@@ -193,26 +211,45 @@ function extract_tau_and_c(
     # when c ≠ 0
     a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
     # c here is actually π c / 6
-    c, v, θ = solve_cvtheta(a1, a2, a3)
+    c, v, θ = solve_cvtheta(a1, a2, a3; fast = true)
     return v * cis(θ), 6 * c / pi
 end
 
-# Logistic sigmoid and its inverse (logit)
-sigmoid(x) = 1 / (1 + exp(-x))
-logit(p) = log(p / (1 - p))
+function _extract_tau_and_c_2x2(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
+    shape1, p1 = [2, 2, 0], ((3, 1), (4, 2))
+    # N → S: τ1 = τ
+    λv = _λ0(TA, TB, shape1)
+    # E → W: τ2 = -1 / τ
+    λh = _λ0(permute(TB, p1), permute(TA, p1), shape1)
+
+    shape2, p2 = [sqrt(2) / 2, sqrt(2), sqrt(2) / 2], ((2, 4), (1, 3))
+    # NE → SW: τ3 = 1 / (1 - τ)
+    λa = _λ0(TA, TB, shape2)
+    # NW → SE: τ4 = τ / (1 + τ)
+    λb = _λ0(permute(TB, p2), permute(TA, p2), shape2)
+
+    # edge case: c = 0
+    if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
+        return complex(0.0, 1.0), 0.0
+    end
+    # when c ≠ 0
+    a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
+    # c here is actually π c / 6
+    c, v, θ = solve_cvtheta(a1, a2, a3; fast = false)
+    return v * cis(θ), 6 * c / pi
+end
 
 """
-    solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
+    solve_cvtheta(a1, a2, a3; fast::Bool = true, c0 = 0.5, v0 = 1.0, θ0 = π / 2)
 
-Solve for positive (c, v) and θ ∈ (0, π) from the three equations:
-
-    a1 = (1/v - v) * c * sin(θ)
-    a2 = (v / (1 + v² - 2v cos θ) - v) * c * sin(θ)
-    a3 = (v / (1 + v² + 2v cos θ) - v) * c * sin(θ)
-
-Returns `(c, v, θ)`.
+Solve for positive (c, v) and θ ∈ (0, π).
 """
-function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
+function solve_cvtheta(
+        a1, a2, a3; fast::Bool = true,
+        c0 = 0.5, v0 = 1.0, θ0 = π / 2
+    )
     function f!(du, u, p)
         xc, xv, xθ = u
         # Work in unconstrained coords to keep variables in their natural domain
@@ -220,12 +257,19 @@ function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
         v = exp(xv)         # make v > 0
         θ = π * sigmoid(xθ) # make θ ∈ (0, π)
 
-        sinθ = sin(θ)
-        cosθ = cos(θ)
-
-        du[1] = (1 / v - v) * c * sinθ - a1
-        du[2] = (v / (1 + v^2 - 2v * cosθ) - v) * c * sinθ - a2
-        du[3] = (v / (1 + v^2 + 2v * cosθ) - v) * c * sinθ - a3
+        sinθ, cosθ = sin(θ), cos(θ)
+        vm, vp = 1 + v^2 - 2v * cosθ, 1 + v^2 + 2v * cosθ
+        if fast
+            csinθ = c * sinθ / 2
+            du[1] = (1 / v - v) * csinθ - a1
+            du[2] = (4 / vm - 1) * v * csinθ - a2
+            du[3] = (4 / vp - 1) * v * csinθ - a3
+        else
+            csinθ = c * sinθ
+            du[1] = (1 / v - v) * csinθ - a1
+            du[2] = (1 / vm - 1) * v * csinθ - a2
+            du[3] = (1 / vp - 1) * v * csinθ - a3
+        end
         return nothing
     end
 
@@ -233,14 +277,9 @@ function solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2)
     u0 = [log(c0), log(v0), logit(θ0 / π)]
     prob = NonlinearProblem(f!, u0)
     sol = solve(prob, NewtonRaphson(; autodiff = AutoForwardDiff()))
-
     if !SciMLBase.successful_retcode(sol)
         @warn "Solver did not converge" retcode = sol.retcode resid = sol.resid
     end
-
     xc, xv, xθ = sol.u
-    c = exp(xc)
-    v = exp(xv)
-    θ = π * sigmoid(xθ)
-    return c, v, θ
+    return exp(xc), exp(xv), π * sigmoid(xθ)
 end
