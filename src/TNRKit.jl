@@ -128,6 +128,7 @@ export free_energy
 
 include("utility/structuredvector.jl")
 
+include("utility/transfer_matrix.jl")
 include("utility/cft.jl")
 export CFTData, extract_tau_and_c
 

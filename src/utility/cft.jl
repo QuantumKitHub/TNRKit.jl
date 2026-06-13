@@ -59,14 +59,8 @@ function CFTData(
     τ0, = extract_tau_and_c(TA′, TB′)
     if shape == [1, 1, 0]
         throw(ArgumentError("The shape [1, 1, 0] is not compatible with a two-site unit cell."))
-    elseif (shape ≈ [sqrt(2), 2 * sqrt(2), 0]) || (shape == [1, 4, 1]) # these shapes need no truncation
-        return spec(TA′, TB′, shape, τ0)
-    elseif (shape == [1, 8, 1]) || (shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)])
-        dl, ur, ul, dr = MPO_opt(TA′, TB′, trunc, truncentanglement)
-        T = reduced_MPO(dl, ur, ul, dr, trunc)
-        return spec(T, T, shape, τ0)
     else
-        throw(ArgumentError("Shape $shape is not implemented."))
+        return spec(TA′, TB′, shape, τ0; trunc, truncentanglement)
     end
 end
 
@@ -103,21 +97,9 @@ which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
 function area_term(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; is_real = true
     ) where {E, S}
-    f0(x) = @tensor begin
-        # for fermions, use APBC (NS) sector
-        fx[-1 -2] := twist(TA, 1)[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        fx[-1 -2] := twist(TB, 1)[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
-    end
-    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
-    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
-    if info.converged == 0
-        @warn "The area term eigensolver did not converge."
-    end
-    if is_real
-        return real(spec0[1])
-    else
-        return spec0[1]
-    end
+    I = sectortype(TA)
+    λ = first(leading_eigenvalue(CFTTransferMatrix(TA, TB, [2, 2, 0]), one(I)))
+    return is_real ? real(λ) : λ
 end
 
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
@@ -132,65 +114,33 @@ Internal function to construct transfer matrices and extract conformal data.
 - `Nh`:     Number of eigenvalues to solve for per sector (default 25).
 """
 function spec(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2},
-        shape::Vector{<:Number}, τ0::Number; Nh = 25
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, shape::Vector{<:Number},
+        τ0::Number; Nh = 25, trunc = notrunc(), truncentanglement = notrunc()
     ) where {E, S}
     I = sectortype(TA)
-    𝔽 = field(TA)
     if BraidingStyle(I) != Bosonic()
         throw(ArgumentError("Sectors with non-Bosonic charge $I has not been implemented"))
     end
 
-    # eigenvalues of the transfer matrix
-    xspace, f, τ = if shape ≈ [1, 4, 1]
-        domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
-            MPO_action_1x4_twist, (1 + τ0) / 4
-    elseif shape ≈ [sqrt(2), 2 * sqrt(2), 0]
-        domain(TB) ⊗ domain(TB), MPO_action_2gates, (1 + τ0) / 2 / (1 - τ0)
-        # in the following cases, (TA, TB) are no longer the original tensor in the network
-    elseif shape ≈ [1, 8, 1]
-        τ0′ = (τ0 - 1) / 2
-        domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1],
-            MPO_action_1x4, τ0′ / 4
-    elseif shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
-        τ0′ = (τ0 - 1) / 2
-        domain(TB) ⊗ domain(TB), MPO_action_2gates, (1 + τ0′) / 2 / (1 - τ0′)
-    else
-        error("Unsupported transfer matrix shape.")
-    end
-    spec_sector = Dict(
-        map(sectors(fuse(xspace))) do charge
-            V = (I == Trivial) ? 𝔽^1 : Vect[I](charge => 1)
-            x = ones(xspace ← V)
-            if dim(x) == 0
-                return charge => [0.0]
-            else
-                spec, _, info = eigsolve(
-                    a -> f(TA, TB, a), x, Nh, :LM; krylovdim = 40, maxiter = 100,
-                    tol = 1.0e-12,
-                    verbosity = 0
-                )
-                if info.converged == 0
-                    @warn "The spectrum eigensolver in sector $charge did not converge."
-                end
-                return charge => filter(x -> abs(real(x)) ≥ 1.0e-12, spec)
-            end
-        end
-    )
+    tm = CFTTransferMatrix(TA, TB, shape; trunc, truncentanglement)
+    τ = modular_parameter(tm, τ0)
+
+    # eigenvalues of the transfer matrix from all charge sectors
+    eigs = leading_eigenvalue(tm; Nh)
 
     # central charge
-    norm_const_0 = spec_sector[one(I)][1]
+    norm_const_0 = eigs[one(I)][1]
     area = shape[1] * shape[2]
     central_charge = 6 / pi / (imag(τ) - imag(τ0) * area / 4) * log(norm_const_0)
 
-    # Construct a StructuredVector from the data of the different sectors
+    # Construct a StructuredVector of scaling dimensions
     data = ComplexF64[]
-    structure = Dict{eltype(sectors(fuse(xspace))), Vector{Int}}()
+    structure = Dict{I, Vector{Int}}()
     last_index = 1
     relative_shift = real(τ) / imag(τ)
-    for charge in sectors(fuse(xspace))
+    for charge in keys(eigs)
         # DeltaS = Δ - i s Re(τ) / Im(τ)
-        DeltaS = -1 / (2 * pi * imag(τ)) * log.(spec_sector[charge] / norm_const_0)
+        DeltaS = -1 / (2 * pi * imag(τ)) * log.(eigs[charge] / norm_const_0)
         if !isapprox(relative_shift, 0; atol = 1.0e-6)
             # save `Δ - i s` in `data`
             push!(data, (real.(DeltaS) + imag.(DeltaS) / relative_shift * im)...)
@@ -206,89 +156,7 @@ function spec(
     sv = StructuredVector(data, structure)
     sv = sort(sv; by = real)
     sv = filter(x -> real(x) ≤ 1.0e16, sv)
-
     return CFTData(central_charge, τ0, sv)
-end
-
-function MPO_opt(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2},
-        trunc::TruncationStrategy, truncentanglement::TruncationStrategy
-    ) where {E, S}
-    pretrunc = truncrank(2 * trunc.howmany)
-    dl, ur = SVD12(TA, pretrunc)
-    dr, ul = SVD12(transpose(TB, ((2, 4), (1, 3))), pretrunc)
-
-    transfer_MPO = [
-        transpose(dl, ((1,), (3, 2))), ur, transpose(ul, ((2,), (3, 1))),
-        transpose(dr, ((3,), (2, 1))),
-    ]
-
-    in_inds = [1, 1, 1, 1]
-    out_inds = [1, 2, 2, 1]
-    MPO_function(steps, data) = abs(data[end])
-    criterion = maxiter(10) & convcrit(1.0e-12, MPO_function)
-    PR_list, PL_list = find_projectors(
-        transfer_MPO, in_inds, out_inds, criterion,
-        trunc & truncentanglement
-    )
-
-    MPO_disentangled!(transfer_MPO, in_inds, out_inds, PR_list, PL_list)
-    return transfer_MPO
-end
-
-# Apply functions for diagonalising different shapes of transfer matrices
-# =======================================================================
-# Fig.25 of https://arxiv.org/pdf/2311.18785. Firstly appear in Chenfeng Bao's thesis, see http://hdl.handle.net/10012/14674.
-"""
-When the elementary modular parameter for TA, TB is `τ`,
-the transfer matrix has `τ_TM = (1 + τ) / 2 / (1 - τ)`.
-"""
-function MPO_action_2gates(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
-    ) where {E, S}
-    @tensor begin
-        fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
-        fx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] * TA[-1 -2; 4 1]
-    end
-    return permute(fx, ((2, 3, 4, 1), (5,)))
-end
-
-"""
-When the elementary modular parameter for TA, TB is `τ`,
-the transfer matrix has `τ_TM = τ / 4`.
-"""
-function MPO_action_1x4(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
-    ) where {E, S}
-    return @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] *
-        TA[41 -1; 1 12] * TB[12 -2; 2 23] * TA[23 -3; 3 34] * TB[34 -4; 4 41]
-end
-
-"""
-When the elementary modular parameter for TA, TB is `τ`,
-the transfer matrix has `τ_TM = (τ + 1) / 4`.
-"""
-function MPO_action_1x4_twist(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, x::TensorMap{E, S, 4, 1}
-    ) where {E, S}
-    TTTTx = MPO_action_1x4(TA, TB, x)
-    return permute(TTTTx, ((2, 3, 4, 1), (5,)))
-end
-
-"""
-This renormalization will change the elementary
-modular parameter from τ to (τ - 1) / 2.
-"""
-function reduced_MPO(
-        dl::TensorMap{E, S, 1, 2}, ur::TensorMap{E, S, 1, 2},
-        ul::TensorMap{E, S, 1, 2}, dr::TensorMap{E, S, 1, 2},
-        trunc::TruncationStrategy
-    ) where {E, S}
-    @plansor temp[-1 -2; -3 -4] :=
-        ur[-1; 1 4] * ul[4; 3 -2] * dr[-3; 2 1] * dl[2; -4 3]
-    D, U = SVD12(temp, trunc)
-    @plansor translate[-1 -2; -3 -4] := U[-2; 1 -4] * D[-1 1; -3]
-    return translate
 end
 
 # Modular parameter and central charge
@@ -305,12 +173,19 @@ end
 function extract_tau_and_c(
         TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
     ) where {E, S}
-    # leading eigenvalue of each transfer matrix
-    # corresponding to the Δ = s = 0 identity field
-    λv = real(_eigsolve_2x2_NtoS(TA, TB))
-    λh = real(_eigsolve_2x2_EtoW(TA, TB))
-    λa = real(_eigsolve_2x2_NEtoSW(TA, TB))
-    λb = real(_eigsolve_2x2_NWtoSE(TA, TB))
+    I = sectortype(TA)
+    # shorthand: leading eigenvalue in the identity sector
+    _λ(TA, TB, shape) = real(first(leading_eigenvalue(CFTTransferMatrix(TA, TB, shape), one(I))))
+    shape1, p1 = [2, 2, 0], ((3, 1), (4, 2))
+    shape2, p2 = [sqrt(2) / 2, sqrt(2), sqrt(2) / 2], ((2, 4), (1, 3))
+    # N → S
+    λv = _λ(TA, TB, shape1)
+    # E → W
+    λh = _λ(permute(TB, p1), permute(TA, p1), shape1)
+    # NE → SW
+    λa = _λ(TA, TB, shape2)
+    # NW → SE
+    λb = _λ(permute(TB, p2), permute(TA, p2), shape2)
     # edge case: c = 0
     if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
         return complex(0.0, 1.0), 0.0
@@ -320,66 +195,6 @@ function extract_tau_and_c(
     # c here is actually π c / 6
     c, v, θ = solve_cvtheta(a1, a2, a3)
     return v * cis(θ), 6 * c / pi
-end
-
-function _eigsolve_2x2_NtoS(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
-    ) where {E, S}
-    f0(x) = @tensor begin
-        # for fermions, use APBC (NS) sector
-        fx[-1 -2] := twist(TA, 1)[c -1; 1 m] * x[1 2] * TB[m -2; 2 c]
-        fx[-1 -2] := twist(TB, 1)[c -1; 1 m] * fx[1 2] * TA[m -2; 2 c]
-    end
-    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1))
-    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
-    if info.converged == 0
-        @warn "The area term eigensolver did not converge."
-    end
-    return first(spec0)
-end
-
-function _eigsolve_2x2_EtoW(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
-    ) where {E, S}
-    TA′ = permute(TA, ((3, 1), (4, 2)))
-    TB′ = permute(TB, ((3, 1), (4, 2)))
-    return _eigsolve_2x2_NtoS(TB′, TA′)
-end
-
-function _eigsolve_2x2_NEtoSW(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
-    ) where {E, S}
-    #= 
-        1   2
-        ┌---┬---┐
-        |   |   |
-    3'--A---B---┤ 3
-        |   |   |
-    4'--B---A---┘ 4
-        |   |
-        1'  2'
-    =#
-    f0(x) = @tensor begin
-        # for fermions, use APBC (NS) sector
-        fx[-1 -2 -3 -4] := TB[-2 -3; a b] * x[-1 a b -4]
-        fx[-1 -2 -3 -4] := TA[-1 -2; a b] * fx[a b -3 -4]
-        fx[-1 -2 -3 -4] := twist(TA, 2)[-3 -4; a b] * fx[-1 -2 a b]
-        fx[-1 -2 -3 -4] := twist(TB, 2)[-4 -1; a b] * fx[-3 a b -2]
-    end
-    x0 = ones(domain(TA, 1) ⊗ domain(TB, 1) ⊗ domain(TB, 2) ⊗ domain(TA, 2))
-    spec0, _, info = eigsolve(f0, x0, 1, :LM; verbosity = 0)
-    if info.converged == 0
-        @warn "The area term eigensolver did not converge."
-    end
-    return first(spec0)
-end
-
-function _eigsolve_2x2_NWtoSE(
-        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
-    ) where {E, S}
-    TA′ = permute(TA, ((2, 4), (1, 3)))
-    TB′ = permute(TB, ((2, 4), (1, 3)))
-    return _eigsolve_2x2_NEtoSW(TB′, TA′)
 end
 
 # Logistic sigmoid and its inverse (logit)
