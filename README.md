@@ -2,15 +2,18 @@
 ![TNRKit Logo](https://github.com/QuantumKitHub/TNRKit.jl/blob/master/docs/src/assets/logo.svg#gh-light-mode-only)
 
 # TNRKit.jl
-| **Documentation** | **Build Status** | **Digital Object Identifyer** | **Coverage** |
-|:-----------------:|:----------------:|:-----------------------------:|:------------:|
-| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![CI][ci-img]][ci-url] | [![DOI][doi-img]][doi-url] | [![Codecov][codecov-img]][codecov-url] |
+| **Documentation** | **Paper** | **Build Status** | **Digital Object Identifyer** | **Coverage** |
+|:-----------------:|:---------:|:----------------:|:-----------------------------:|:------------:|
+| [![][docs-stable-img]][docs-stable-url] [![][docs-dev-img]][docs-dev-url] | [![SciPost][paper-img]][paper-url] | [![CI][ci-img]][ci-url] | [![DOI][doi-img]][doi-url] | [![Codecov][codecov-img]][codecov-url] |
 
 [docs-stable-img]: https://img.shields.io/badge/docs-stable-blue.svg
 [docs-stable-url]: https://QuantumKitHub.github.io/TNRKit.jl/stable
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://QuantumKitHub.github.io/TNRKit.jl/dev
+
+[paper-img]: https://img.shields.io/badge/SciPost-Phys.%20Codebases%2077-002b49.svg
+[paper-url]: https://scipost.org/SciPostPhysCodeb.77
 
 [ci-img]: https://github.com/QuantumKitHub/TNRKit.jl/actions/workflows/CI.yml/badge.svg
 [ci-url]: https://github.com/QuantumKitHub/TNRKit.jl/actions/workflows/CI.yml
@@ -25,6 +28,12 @@
 TNRKit.jl is a Julia package that aims to implement as many tensor network renormalization (TNR) schemes as possible.
 It is built upon
 [TensorKit.jl](https://github.com/jutho/TensorKit.jl), which provides functionality for symmetric tensors.
+
+The package is described in
+[*A practical introduction to tensor network renormalization with TNRKit.jl*](https://scipost.org/SciPostPhysCodeb.77)
+(SciPost Phys. Codebases 77, 2026), which doubles as a self-contained introduction to the TNR framework.
+If you use TNRKit.jl in your research, please consider [citing it](#citing-tnrkitjl).
+
 The following schemes are currently implemented:
 
 **2D square tensor networks**
@@ -129,3 +138,23 @@ TNRKit includes several common models out of the box.
 ## Included Models on the honeycomb lattice
 TNRKit includes several common models out of the box.
 - Ising model: `classical_ising_honeycomb(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+
+# Citing TNRKit.jl
+If TNRKit.jl was useful for your research, please cite the accompanying paper:
+
+> V. Vanthilt, A. Naravane, C. Meng and A. Ueda,
+> *A practical introduction to tensor network renormalization with TNRKit.jl*,
+> SciPost Phys. Codebases 77 (2026), [doi:10.21468/SciPostPhysCodeb.77](https://doi.org/10.21468/SciPostPhysCodeb.77).
+
+```bibtex
+@article{Vanthilt2026TNRKit,
+    title     = {A practical introduction to tensor network renormalization with {TNRKit.jl}},
+    author    = {Vanthilt, Victor and Naravane, Adwait and Meng, Chenqi and Ueda, Atsushi},
+    journal   = {SciPost Phys. Codebases},
+    pages     = {77},
+    year      = {2026},
+    publisher = {SciPost},
+    doi       = {10.21468/SciPostPhysCodeb.77},
+    url       = {https://scipost.org/SciPostPhysCodeb.77},
+}
+```
