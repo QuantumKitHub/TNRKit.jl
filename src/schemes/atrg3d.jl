@@ -7,7 +7,7 @@ $(TYPEDEF)
     $(FUNCTIONNAME)(T)
 
 # Running the algorithm
-    run!(::ATRG_3D, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=defualt_Finalizer, finalize_beginning=true,verbosity=1])
+    run!(::ATRG_3D, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=defualt_Finalizer, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of 2
 

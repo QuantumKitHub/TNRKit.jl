@@ -63,7 +63,7 @@ Thermal Tensor Network Renormalization on a square-lattice
 
 # Running the algorithm
     run!(::ThermalTNR, A::AbstractMatrix{<:AbstractTensorMap}, trunc::TruncationStrategy, criterion::stopcrit[
-              , finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
+              , finalizer=default_Finalizer, verbosity=1])
 
 # Fields
 
@@ -255,17 +255,12 @@ end
 
 function run!(
         scheme::ThermalTNR, layer::TNO, trscheme::TruncationStrategy,
-        criterion::stopcrit, finalizer::Finalizer{E};
-        finalize_beginning = true, verbosity = 1
+        criterion::stopcrit, finalizer::Finalizer{E}; verbosity = 1
     ) where {E}
     data = Vector{E}()
 
     LoggingExtras.withlevel(; verbosity) do
         @infov 1 "Starting simulation\n $(scheme)\n"
-        if finalize_beginning
-            push!(data, finalizer.f!(scheme))
-        end
-
         steps = 0
         crit = true
 

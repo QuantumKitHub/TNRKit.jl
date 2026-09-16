@@ -12,7 +12,7 @@ or with a (0,4) tensor (North, East, South, West) (unflipped arrow convention).
 The keyword argument symmetrize makes the tensor C4v symmetric when set to true. If symmetrize = false, it checks the symmetry explicitly.
 
 # Running the algorithm
-    run!(::c4vCTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
+    run!(::c4vCTM, trunc::TruncationStrategy, stop::Stopcrit[, verbosity=1])
 
 !!! info "verbosity levels"
     - 0: No output

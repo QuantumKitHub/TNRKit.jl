@@ -9,12 +9,8 @@ stopping_criterion = convcrit(1.0e-16, trg_f) & maxiter(20)
 # choose a TensorKit truncation scheme
 trunc = truncrank(16) & trunctol(atol = 1.0e-40)
 
-# initialize the TRG scheme
-scheme = TRG(classical_ising(1.0))
 
-# run the TRG scheme (and normalize and store the norm in the beginning (finalize_beginning=true))
-data = run!(scheme, trunc, stopping_criterion; finalize_beginning = true)
-# or: data = run!(scheme, truncrank(16)), this will default to maxiter(100)
+# ---- old interface (other schemes) ----
 
 # initialize the BTRG scheme
 scheme = BTRG(classical_ising(1.0), -0.5)
@@ -27,3 +23,30 @@ scheme = HOTRG(classical_ising(1.0))
 
 # run the HOTRG scheme
 data = run!(scheme, trunc, stopping_criterion)
+
+# ---- iterable `Renormalizer` interface ----
+
+# create a pure algorithm config (kwargs with sensible defaults)
+alg = TRG(; trunc = trunc, stop = stopping_criterion)
+renorm = Renormalizer(alg, classical_ising(1.0))
+
+# run all steps with logging
+state, data = run!(renorm; verbosity = 1)
+f = free_energy(data, 1.0)
+
+# or, step through manually
+renorm = Renormalizer(alg, classical_ising(1.0))
+for (state, data) in renorm
+    τ0, _ = extract_tau_and_c(state.T; fast = true)
+    # each iteration yields the state after one RG step
+    # renorm.step tracks how many steps have been completed
+end
+# renorm.step is the number of completed steps
+
+# or, advance one step at a time
+renorm = Renormalizer(alg, classical_ising(1.0))
+rgstep!(renorm)  # throws if stop criterion already met
+rgstep!(renorm)
+
+# access the current tensor directly from the state
+T_final = renorm.state.T

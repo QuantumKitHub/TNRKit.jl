@@ -7,7 +7,7 @@ Impurity method for Tensor Renormalization Group
     $(FUNCTIONNAME)(T, T_imp1, T_imp2, T_imp3, T_imp4)
 
 # Running the algorithm
-    run!(::ImpurityTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityTRG_Finalizer, finalize_beginning=true, verbosity=1])
+    run!(::ImpurityTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityTRG_Finalizer, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
 
