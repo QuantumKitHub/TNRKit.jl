@@ -27,7 +27,7 @@ mutable struct SLoopTNR{E, S, TT <: AbstractTensorMap{E, S, 4, 0}} <: TNRScheme{
 
     "Gradient optimization algorithm"
     gradalg::OptimKit.LBFGS
-    function SLoopTNR(T::TT; gradalg = LBFGS(10; verbosity = 0, gradtol = 6.0e-7, maxiter = 40000)) where {E, S, TT <: AbstractTensorMap{E, S, 4, 0}}
+    function SLoopTNR(T::TT; gradalg = LBFGS(10; verbosity = 0, gradtol = 1.0e-6, maxiter = 200)) where {E, S, TT <: AbstractTensorMap{E, S, 4, 0}}
         return new{E, S, TT}(T, gradalg)
     end
 end
@@ -48,7 +48,7 @@ classical_ising_inv() = classical_ising_inv(ising_βc)
 
 ########## utility functions ##########
 function trnorm_2x2(T)
-    @tensor TT[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(T[1 -2 2 -4])
+    @tensoropt TT[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(T[1 -2 2 -4])
     return sqrt(TTtoNorm(TT))
 end
 
@@ -56,7 +56,7 @@ end
 function StoSS(S)
     V = domain(S)[1]
     b = isomorphism(V, V')
-    @tensor SS[-1 -2 -3 -4] := S[-1 -2; 1] * S[-3 -4; 2] * b[1 2]
+    @tensoropt SS[-1 -2 -3 -4] := S[-1 -2; 1] * S[-3 -4; 2] * b[1 2]
     return SS
 end
 
@@ -64,36 +64,77 @@ function TTtoNorm(TT)
     V = domain(TT)
     b = isomorphism(V[1] ⊗ V[2], V[1]' ⊗ V[2]')
     TTb = TT * b
-    @tensor T4[-1 -2; -3 -4] := TT[-1 -2; 1 2] * TTb[-3 -4; 1 2]
+    @tensoropt T4[-1 -2; -3 -4] := TT[-1 -2; 1 2] * TTb[-3 -4; 1 2]
     V = domain(T4)
     b = isomorphism(V[1] ⊗ V[2], V[1]' ⊗ V[2]')
     T4b = T4 * b
-    @tensor T8[-1 -2; -3 -4] := T4[-1 -2; 1 2] * T4b[-3 -4; 1 2]
+    @tensoropt T8[-1 -2; -3 -4] := T4[-1 -2; 1 2] * T4b[-3 -4; 1 2]
     V = domain(T8)
     b = isomorphism(V[1] ⊗ V[2], V[1]' ⊗ V[2]')
     return tr(T8 * b)
 end
 
-function cost_looptnr(S, T)
+function TtoNorm(T)
+    @tensoropt TT[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(T[1 -2 2 -4])
+    return TTtoNorm(TT)
+end
+
+function cost_looptnr(S, T, n_TT)
     @assert eltype(S) == Float64 "Modification is needed for complex numbers!"
     SS = StoSS(S)
-    @tensor TT[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(T[1 -2 2 -4])
-    @tensor TSS[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(SS[1 -2 2 -4])
-    @tensor S4[-1 -2; -3 -4] := SS[1 -1 2 -3] * conj(SS[1 -2 2 -4])
-    # T
-    return TTtoNorm(TT) + TTtoNorm(S4) - 2 * TTtoNorm(TSS)
+
+    @tensoropt TSS[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(SS[1 -2 2 -4])
+    @tensoropt S4[-1 -2; -3 -4] := SS[1 -1 2 -3] * conj(SS[1 -2 2 -4])
+    return n_TT + TTtoNorm(S4) - 2 * TTtoNorm(TSS)
 end
 
 ########## Gradient Optimization ##########
-function fg(f, A)
-    f_out, g = Zygote.withgradient(f, A)
+function loop_environment(TT)
+    V = domain(TT)
+    b = isomorphism(V[1] ⊗ V[2], V[1]' ⊗ V[2]')
+    TTb = TT * b
+    @tensoropt T4[-1 -2; -3 -4] := TT[-1 -2; 1 2] * TTb[-3 -4; 1 2]
+    return T4 * b * TT
+end
 
-    return f_out, g[1]
+function StoSS_pullback(S, gSS)
+    V = domain(S)[1]
+    b = isomorphism(V, V')
+    Sb = S * b
+    @tensoropt gS[-1 -2; -3] := gSS[-1 -2 1 2] * conj(Sb[1 2; -3])
+    return 2 * gS
+end
+
+function gradient_looptnr(S, T, SS, TSS, S4)
+    # One of the eight equal contributions from the S-S overlap.
+    env_SS = loop_environment(S4)
+    @tensoropt gSS[-1 -2 -3 -4] := SS[-1 1 -3 2] * env_SS[-2 1; -4 2]
+    gS_SS = StoSS_pullback(S, gSS)
+
+    # One of the four equal contributions from the T-S overlap.
+    env_TS = loop_environment(TSS)
+    env_TS_transposed = permute(env_TS, ((2, 1), (4, 3)))
+    @tensoropt gTS_dual[-1 -2 -3 -4] := conj(T[-1 1 -3 2]) * env_TS_transposed[-2 1; -4 2]
+    gTS = flip(gTS_dual, (1, 2, 3, 4))
+    gS_TS = StoSS_pullback(S, gTS)
+
+    return 8 * gS_SS - 2 * 4 * gS_TS
+end
+
+function cost_looptnr_fg(S, T, n_TT)
+    @assert eltype(S) == Float64 "Modification is needed for complex numbers!"
+    SS = StoSS(S)
+
+    @tensoropt TSS[-1 -2; -3 -4] := T[1 -1 2 -3] * conj(SS[1 -2 2 -4])
+    @tensoropt S4[-1 -2; -3 -4] := SS[1 -1 2 -3] * conj(SS[1 -2 2 -4])
+    cost = n_TT + TTtoNorm(S4) - 2 * TTtoNorm(TSS)
+    grad = gradient_looptnr(S, T, SS, TSS, S4)
+    return cost, grad
 end
 
 function optimize_S(scheme, S)
-    opt_fun(x) = cost_looptnr(x, scheme.T)
-    opt_fg(x) = fg(opt_fun, x)
+    n_TT = TtoNorm(scheme.T)
+    opt_fg(x) = cost_looptnr_fg(x, scheme.T, n_TT)
     Sopt, fx, gx, numfg, normgradhistory = optimize(
         opt_fg, S,
         scheme.gradalg
@@ -126,7 +167,7 @@ end
 
 function entanglement_filtering(T; trunc = trunctol(atol = 1.0e-12))
     entanglement_function(steps, data) = abs(data[end])
-    entanglement_criterion = maxiter(100) & convcrit(1.0e-12, entanglement_function)
+    entanglement_criterion = maxiter(200) & convcrit(1.0e-12, entanglement_function)
 
     psi_center = Ψ_center(T)
     psi_corner = Ψ_corner(T)
@@ -146,7 +187,7 @@ function entanglement_filtering(T; trunc = trunctol(atol = 1.0e-12))
     P_top = PL_list[3]
     P_left = PL_list[3]
 
-    @tensor T_new[-1 -2 -3 -4] := T[1 2 3 4] * P_left[-1; 1] * P_bottom[-2; 2] *
+    @tensoropt T_new[-1 -2 -3 -4] := T[1 2 3 4] * P_left[-1; 1] * P_bottom[-2; 2] *
         P_top[-3; 3] * P_right[-4; 4]
     return T_new
 end
@@ -168,14 +209,14 @@ function ef_oneloop(T, trunc::TruncationStrategy)
         criterion, trunc
     )
     i = 1
-    @tensor S[-2 -1; -3] := ΨB[i][-1; -2 2] * PRs[mod(i, 8) + 1][2; -3]
+    @tensoropt S[-2 -1; -3] := ΨB[i][-1; -2 2] * PRs[mod(i, 8) + 1][2; -3]
     return S
 end
 
 ########## Updating the tensor ##########
 function combine_4S(S)
     Sflip = flip(S, (1, 2))
-    @tensor Tnew[-1 -2 -3 -4] := S[1 2; -4] * Sflip[1 4; -3] * S[3 4; -1] * Sflip[3 2; -2]
+    @tensoropt Tnew[-1 -2 -3 -4] := S[1 2; -4] * Sflip[1 4; -3] * S[3 4; -1] * Sflip[3 2; -2]
     return Tnew
 end
 

@@ -5,7 +5,7 @@ using MatrixAlgebraKit
 using MatrixAlgebraKit: TruncationStrategy
 using LoggingExtras, Printf
 using KrylovKit
-using OptimKit, Zygote
+using OptimKit
 using DocStringExtensions
 using SpecialFunctions
 using FastGaussQuadrature

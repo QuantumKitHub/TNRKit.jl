@@ -1,6 +1,8 @@
 using Test
 using TNRKit
 using TensorKit
+using LinearAlgebra
+using OptimKit
 
 # This tests every scheme in the library on the Z2 symmetric Ising model.
 println("---------------------")
@@ -368,7 +370,24 @@ end
     @test free_energy(data, ising_βc; initial_size = 2) ≈ f_onsager rtol = 1.0e-6
 end
 
-# SLoopTNR
+@testset "SLoopTNR - Manual gradient" begin
+    V = ℝ^2
+    T_inv = ones(Float64, V ⊗ V ⊗ V ⊗ V ← one(V))
+    S = ones(Float64, V ⊗ V ← V)
+    dS = ones(Float64, space(S))
+    n_TT = TNRKit.TtoNorm(T_inv)
+
+    cost, grad = TNRKit.cost_looptnr_fg(S, T_inv, n_TT)
+    ϵ = 1.0e-6
+    directional_derivative = (
+        TNRKit.cost_looptnr(S + ϵ * dS, T_inv, n_TT) -
+            TNRKit.cost_looptnr(S - ϵ * dS, T_inv, n_TT)
+    ) / (2ϵ)
+
+    @test cost ≈ TNRKit.cost_looptnr(S, T_inv, n_TT)
+    @test real(dot(grad, dS)) ≈ directional_derivative rtol = 1.0e-9
+end
+
 @testset "SLoopTNR - Ising Model" begin
     @info "SLoopTNR ising free energy"
     T_inv = classical_ising_inv()
@@ -377,6 +396,18 @@ end
     data = run!(scheme, truncrank(4), maxiter(25))
 
     @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-5
+
+    @info "SLoopTNR Ising fixed-point tensor"
+    gradalg = LBFGS(10; verbosity = 0, gradtol = 6.0e-7, maxiter = 2000)
+    scheme = SLoopTNR(classical_ising_inv(); gradalg)
+    run!(scheme, truncrank(16), maxiter(16))
+    fp = fixed_point_tensor(scheme)
+
+    # The finite-χ value approaches the exact 0.645 from below (the paper
+    # reports 0.610 at D = 96 and finite L).
+    σ4 = real(fp[2, 2, 2, 2])
+    @test σ4 ≈ 0.5967 atol = 5.0e-3
+    @test σ4 ≈ 0.645 atol = 6.0e-2
 end
 
 # ctm
