@@ -1,5 +1,4 @@
-![TNRKit Logo](https://github.com/QuantumKitHub/TNRKit.jl/blob/master/docs/src/assets/logo-dark.svg#gh-dark-mode-only)
-![TNRKit Logo](https://github.com/QuantumKitHub/TNRKit.jl/blob/master/docs/src/assets/logo.svg#gh-light-mode-only)
+<img alt="TNRKit.jl logo" src="./docs/src/assets/logo_readme.svg" width="131">
 
 # TNRKit.jl
 | **Documentation** | **Paper** | **Build Status** | **Digital Object Identifyer** | **Coverage** |
