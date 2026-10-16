@@ -7,7 +7,7 @@ Bond-weighted Tensor Renormalization Group
     $(FUNCTIONNAME)(T [, k=-1/2])
 
 # Running the algorithm
-    run!(::BTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
+    run!(::BTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
 

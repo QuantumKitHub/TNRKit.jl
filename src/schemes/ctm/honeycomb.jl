@@ -25,7 +25,7 @@ or with a (0,3) tensor (120°, 0°, 240°) where all arrows point inward (unflip
 The keyword argument symmetrize makes the tensor C6v symmetric when set to true. If symmetrize = false, it checks the symmetry explicitly.
 
 # Running the algorithm
-    run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
+    run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, verbosity=1])
 
 !!! info "verbosity levels"
     - 0: No output
@@ -131,7 +131,7 @@ In the flipped arrow convention, the arrows point from (120°) to (240°, 0°).
 or with a (0,3) tensor (120°, 0°, 240°) where all arrows point inward (unflipped arrow convention).
 
 # Running the algorithm
-    run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
+    run!(::CTM, trunc::TruncationStrategy, stop::Stopcrit[, verbosity=1])
 
 !!! info "verbosity levels"
     - 0: No output

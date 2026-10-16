@@ -1,5 +1,5 @@
 # Finalizers
-At the end of every TNR step (and before the first step if `finalize_beginning=true` is chose in the `run!` function, which is default behaviour), the state of the scheme is finalized.
+At the end of every TNR step, the state of the scheme is finalized.
 
 By default this finalization process is as follow:
 

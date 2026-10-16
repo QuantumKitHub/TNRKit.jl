@@ -1,4 +1,17 @@
-const simple_scheme = Union{TRG, ATRG, HOTRG}
+# ========================================================
+# normalization after an RG step for different TNR schemes
+# ========================================================
+
+# 1x1 unitcell finalize
+function finalize!(state::OneSiteState)
+    n = norm(@tensor state.T[1 2; 2 1])
+    state.T /= n
+    return n
+end
+
+# Below: for use with old `TNRScheme` interface.
+
+const simple_scheme = Union{ATRG, HOTRG}
 
 # 1x1 unitcell finalize
 function finalize!(scheme::simple_scheme)
@@ -133,6 +146,10 @@ function finalize_phase23!(scheme::CorrelationHOTRG)
 
     return n, n_imp, n_imp
 end
+
+# =====================================================================
+# TODO: remove the following once Renormalizer interface is finished
+# =====================================================================
 
 # cft data finalize
 function finalize_cftdata!(scheme::TNRScheme)

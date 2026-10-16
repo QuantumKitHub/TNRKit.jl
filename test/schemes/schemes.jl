@@ -17,19 +17,9 @@ const T_aniso = classical_ising(Z2Irrep, βc_aniso; Jx = Jx_aniso, Jy = Jy_aniso
 const f_aniso_exact = f_onsager_anisotropic(βc_aniso, Jx_aniso, Jy_aniso)
 const τ_aniso_exact = sinh(2 * βc_aniso * Jx_aniso)
 
-function cft_finalize!(scheme)
-    finalize!(scheme)
-    return CFTData(scheme)
-end
-
 """
 Normalize the tensor, return the normalization factor and elementary modular parameter
 """
-function tau_finalize!(scheme::TRG)
-    n = finalize!(scheme)
-    τ0, c = extract_tau_and_c(scheme.T; fast = false)
-    return (n, τ0)
-end
 function tau_finalize!(scheme::LoopTNR)
     n = finalize!(scheme)
     τ0, c = extract_tau_and_c(scheme.TA, scheme.TB; fast = false)
@@ -40,27 +30,28 @@ end
 @testset "TRG - Anisotropic Ising Model" begin
     @info "Anisotropy: Jx = $(Jx_aniso), Jy = $(Jy_aniso)"
     @info "TRG anisotropic ising free energy"
-    scheme = TRG(T_aniso)
-    elt = scalartype(T_aniso)
-    finalizer = Finalizer(tau_finalize!, Tuple{elt, complex(elt)})
-    data = run!(scheme, truncrank(24), maxiter(25), finalizer)
-
-    ns = map(Base.Fix2(getindex, 1), data)
-    @test free_energy(ns, βc_aniso) ≈ f_aniso_exact rtol = 2.0e-6
+    alg = TRG(; trunc = truncrank(24), stop = maxiter(25))
+    renorm = Renormalizer(alg, T_aniso)
+    T_step10 = nothing
+    τs = complex(scalartype(T_aniso))[]
+    for (state, _) in renorm
+        τ = first(extract_tau_and_c(state.T; fast = false))
+        @info "* Step $(renorm.step): τ = $τ."
+        push!(τs, τ)
+        (renorm.step == 10) && (T_step10 = state.T)
+    end
+    @test free_energy(renorm.data, βc_aniso) ≈ f_aniso_exact rtol = 2.0e-6
 
     @info "TRG τ → (τ - 1) / (τ + 1)"
     f_trg(τ) = (τ - 1) / (τ + 1)
-    τs = map(Base.Fix2(getindex, 2), data)
     for n in 5:7
         @test τs[n + 1] ≈ f_trg(τs[n]) rtol = 5.0e-2
         @info "* verified for step $(n - 1) → $n"
     end
 
     @info "TRG anisotropic ising CFT data — shape [1, 1, 0]"
-    scheme = TRG(T_aniso)
-    run!(scheme, truncrank(24), maxiter(10))
     # use fast tau algorithm below
-    cft = CFTData(scheme; shape = [1, 1, 0])
+    cft = CFTData(T_step10; shape = [1, 1, 0])
     sd_all = real(cft.scaling_dimensions)
     cft_sorted = sort(sd_all[2:end]; by = abs)
 
@@ -69,23 +60,19 @@ end
     @info "Obtained scaling dimensions: Δ₁ = $(cft_sorted[1]), Δ₂ = $(cft_sorted[2])"
 
     @info "TRG anisotropic ising ground state degeneracy"
-    T1 = classical_ising(βc_aniso - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
-    scheme = TRG(T1)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 1 rtol = 1.0e-2
-    @test X1 ≈ 1.0 rtol = 1.0e-2
-    @test X2 ≈ 1.0 rtol = 1.0e-2
-
-    T2 = classical_ising(βc_aniso + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
-    scheme = TRG(T2)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 2 rtol = 1.0e-2
-    @test X1 ≈ 2.0 rtol = 1.0e-2
-    @test X2 ≈ 2.0 rtol = 1.0e-2
+    alg = TRG(; trunc = truncrank(16), stop = maxiter(20))
+    for (Δβ, gsd0, X10, X20) in [
+            (-0.01, 1, 1.0, 1.0), (0.01, 2, 2.0, 2.0),
+        ]
+        T1 = classical_ising(βc_aniso + Δβ; Jx = Jx_aniso, Jy = Jy_aniso)
+        renorm = Renormalizer(alg, T1)
+        state, = run!(renorm; verbosity = 0)
+        gsd = ground_state_degeneracy(state.T)
+        X1, X2 = gu_wen_ratio(state.T)
+        @test gsd ≈ gsd0 rtol = 1.0e-2
+        @test X1 ≈ X10 rtol = 1.0e-2
+        @test X2 ≈ X20 rtol = 1.0e-2
+    end
 end
 
 # BTRG
@@ -106,23 +93,18 @@ end
     @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
 
     @info "BTRG ising ground state degeneracy"
-    T1 = classical_ising(ising_βc - 0.01)
-    scheme = BTRG(T1)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 1 rtol = 1.0e-2
-    @test X1 ≈ 1.0 rtol = 1.0e-2
-    @test X2 ≈ 1.0 rtol = 1.0e-2
-
-    T2 = classical_ising(ising_βc + 0.01)
-    scheme = BTRG(T2)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 2 rtol = 1.0e-2
-    @test X1 ≈ 2.0 rtol = 1.0e-2
-    @test X2 ≈ 2.0 rtol = 1.0e-2
+    for (Δβ, gsd0, X10, X20) in [
+            (-0.01, 1, 1.0, 1.0), (0.01, 2, 2.0, 2.0),
+        ]
+        T1 = classical_ising(ising_βc + Δβ)
+        scheme = BTRG(T1)
+        run!(scheme, truncrank(16), maxiter(20))
+        gsd = ground_state_degeneracy(scheme)
+        X1, X2 = gu_wen_ratio(scheme)
+        @test gsd ≈ gsd0 rtol = 1.0e-2
+        @test X1 ≈ X10 rtol = 1.0e-2
+        @test X2 ≈ X20 rtol = 1.0e-2
+    end
 end
 
 # HOTRG
@@ -143,23 +125,18 @@ end
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
 
     @info "HOTRG ising ground state degeneracy"
-    T1 = classical_ising(ising_βc - 0.01)
-    scheme = HOTRG(T1)
-    run!(scheme, truncrank(12), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 1 rtol = 1.0e-2
-    @test X1 ≈ 1.0 rtol = 1.0e-2
-    @test X2 ≈ 1.0 rtol = 1.0e-2
-
-    T2 = classical_ising(ising_βc + 0.01)
-    scheme = HOTRG(T2)
-    run!(scheme, truncrank(12), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 2 rtol = 1.0e-2
-    @test X1 ≈ 2.0 rtol = 1.0e-2
-    @test X2 ≈ 2.0 rtol = 1.0e-2
+    for (Δβ, gsd0, X10, X20) in [
+            (-0.01, 1, 1.0, 1.0), (0.01, 2, 2.0, 2.0),
+        ]
+        T1 = classical_ising(ising_βc + Δβ)
+        scheme = HOTRG(T1)
+        run!(scheme, truncrank(12), maxiter(20))
+        gsd = ground_state_degeneracy(scheme)
+        X1, X2 = gu_wen_ratio(scheme)
+        @test gsd ≈ gsd0 rtol = 1.0e-2
+        @test X1 ≈ X10 rtol = 1.0e-2
+        @test X2 ≈ X20 rtol = 1.0e-2
+    end
 end
 
 # ATRG
@@ -180,23 +157,18 @@ end
     @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
 
     @info "ATRG ising ground state degeneracy"
-    T1 = classical_ising(ising_βc - 0.01)
-    scheme = ATRG(T1)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 1 rtol = 1.0e-2
-    @test X1 ≈ 1.0 rtol = 1.0e-2
-    @test X2 ≈ 1.0 rtol = 1.0e-2
-
-    T2 = classical_ising(ising_βc + 0.01)
-    scheme = ATRG(T2)
-    run!(scheme, truncrank(16), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 2 rtol = 1.0e-2
-    @test X1 ≈ 2.0 rtol = 1.0e-2
-    @test X2 ≈ 2.0 rtol = 1.0e-2
+    for (Δβ, gsd0, X10, X20) in [
+            (-0.01, 1, 1.0, 1.0), (0.01, 2, 2.0, 2.0),
+        ]
+        T1 = classical_ising(ising_βc + Δβ)
+        scheme = ATRG(T1)
+        run!(scheme, truncrank(16), maxiter(20))
+        gsd = ground_state_degeneracy(scheme)
+        X1, X2 = gu_wen_ratio(scheme)
+        @test gsd ≈ gsd0 rtol = 1.0e-2
+        @test X1 ≈ X10 rtol = 1.0e-2
+        @test X2 ≈ X20 rtol = 1.0e-2
+    end
 end
 
 # LoopTNR
@@ -222,13 +194,12 @@ end
     τs = map(Base.Fix2(getindex, 2), data)
     for n in 5:8
         @test τs[n + 1] ≈ f_looptnr(τs[n]) rtol = 2.0e-2
-        @info "* verified for step $(n - 1) → $n"
+        @info "* verified for step $n → $(n + 1)"
     end
 
     @info "Theory value of τ for anisotropic Ising"
     for n in (4, 8, 12)
-        # n + 1 due to finalizing the initial tensor
-        τ = τs[n + 1]
+        τ = τs[n]
         @test real(τ) ≈ 0 atol = 1.0e-3
         @test imag(τ) ≈ τ_aniso_exact rtol = 2.0e-3
         @info "* τ = $τ ≈ $(τ_aniso_exact)im verified for step $n"
@@ -282,23 +253,18 @@ end
     end
 
     @info "LoopTNR anisotropic ising ground state degeneracy"
-    T1 = classical_ising(βc_aniso - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
-    scheme = LoopTNR(T1)
-    run!(scheme, truncrank(12), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 1 rtol = 1.0e-2
-    @test X1 ≈ 1.0 rtol = 1.0e-2
-    @test X2 ≈ 1.0 rtol = 1.0e-2
-
-    T2 = classical_ising(βc_aniso + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
-    scheme = LoopTNR(T2)
-    run!(scheme, truncrank(12), maxiter(20))
-    gsd = ground_state_degeneracy(scheme)
-    X1, X2 = gu_wen_ratio(scheme)
-    @test gsd ≈ 2 rtol = 1.0e-2
-    @test X1 ≈ 2.0 rtol = 1.0e-2
-    @test X2 ≈ 2.0 rtol = 1.0e-2
+    for (Δβ, gsd0, X10, X20) in [
+            (-0.01, 1, 1.0, 1.0), (0.01, 2, 2.0, 2.0),
+        ]
+        T1 = classical_ising(βc_aniso + Δβ; Jx = Jx_aniso, Jy = Jy_aniso)
+        scheme = LoopTNR(T1)
+        run!(scheme, truncrank(12), maxiter(20))
+        gsd = ground_state_degeneracy(scheme)
+        X1, X2 = gu_wen_ratio(scheme)
+        @test gsd ≈ gsd0 rtol = 1.0e-2
+        @test X1 ≈ X10 rtol = 1.0e-2
+        @test X2 ≈ X20 rtol = 1.0e-2
+    end
 end
 
 @testset "LoopTNR - Ising Model - Dense Solver - NNR" begin
@@ -570,7 +536,7 @@ end
 
     data = run!(scheme, truncrank(16), maxiter(25))
 
-    @test free_energy(getindex.(data, 1), ising_βc; scalefactor = 4.0, initial_size = 4.0) ≈ f_onsager rtol = 1.0e-4
+    @test free_energy(getindex.(data, 1), ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 1.0e-4
 end
 
 @testset "Correlation HOTRG - Magnetisation Correlation" begin
@@ -728,8 +694,7 @@ function _thermal_zn2_gu_wen_x1(β, Lz; χttnr = 12, χbtrg = 16, btrg_steps = 1
     @tensor effective_tensor[-1 -2 -3 -4] := scheme.T[1, 1][p p; -1 -2 -3 -4]
     btrg = BTRG(permute(effective_tensor, ((1, 2), (3, 4))))
     ratios = run!(
-        btrg, truncrank(χbtrg), maxiter(btrg_steps), guwenratio_Finalizer;
-        finalize_beginning = false, verbosity = 0,
+        btrg, truncrank(χbtrg), maxiter(btrg_steps), guwenratio_Finalizer; verbosity = 0,
     )
 
     x1, _ = last(ratios)

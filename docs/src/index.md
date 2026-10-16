@@ -58,7 +58,7 @@ T = classical_ising(ising_βc) # partition function of classical Ising model at 
 scheme = BTRG(T) # Bond-weighted TRG (excellent choice)
 data = run!(scheme, truncrank(16), maxiter(25)) # max bond-dimension of 16, for 25 iterations
 ```
-`data` now contains 26 norms of the tensor, 1 for every time the tensor was normalized. (By default there is a normalization step before the first coarse-graining step wich can be turned off by changing the kwarg `run!(...; finalize_beginning=false)`)
+`data` now contains 25 norms of the tensor, 1 for every time the tensor was normalized.
 
 Using these norms you could, for example, calculate the free energy of the critical classical Ising model:
 ```Julia

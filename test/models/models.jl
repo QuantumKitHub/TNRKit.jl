@@ -44,8 +44,9 @@ model_temp_answer_string_3d = [
 
 for (model, temp, answer, description) in model_temp_answer_string_2d
     @testset "$(description)" begin
-        scheme = TRG(model)
-        data = run!(scheme, truncrank(16), maxiter(25))
+        alg = TRG(; trunc = truncrank(16), stop = maxiter(25))
+        renorm = Renormalizer(alg, model)
+        _, data = run!(renorm; verbosity = 0)
         @test free_energy(data, temp) ≈ answer rtol = 1.0e-3
     end
 end
@@ -201,7 +202,7 @@ end
     scheme = LoopTNR(T)
     elt = scalartype(T)
     finalizer = Finalizer(cc_finalize!, Tuple{elt, complex(elt), elt})
-    data = run!(scheme, truncrank(16), maxiter(16), finalizer; finalize_beginning = false)
+    data = run!(scheme, truncrank(16), maxiter(16), finalizer)
     @test last(data)[3] ≈ 0.5 atol = 1.0e-2
 end
 
@@ -213,9 +214,9 @@ end
     T = vertical_stack_exp(T, nfold, trunc_stack)
 
     @info "CFT data from TRG"
-    scheme = TRG(T)
-    run!(scheme, truncrank(24), maxiter(8))
-    cft = CFTData(scheme; shape = [1, 1, 0])
+    alg = TRG(; trunc = truncrank(24), stop = maxiter(8))
+    state, _ = run!(Renormalizer(alg, T); verbosity = 0)
+    cft = CFTData(state.T; shape = [1, 1, 0])
     c = cft.central_charge
     sd = cft.scaling_dimensions
     d_1 = real(sd[(:NS, FermionParity(0))][2])
@@ -233,7 +234,7 @@ end
     scheme = LoopTNR(T)
     elt = scalartype(T)
     finalizer = Finalizer(cc_finalize!, Tuple{elt, complex(elt), elt})
-    data = run!(scheme, truncrank(16), maxiter(8), finalizer; finalize_beginning = false)
+    data = run!(scheme, truncrank(16), maxiter(8), finalizer)
     @test last(data)[3] ≈ 0.5 atol = 1.0e-2
     for shape in ([√2, 2√2, 0], [1, 4, 1], [1, 8, 1], [4 / √10, 2√10, 2 / √10])
         cft = CFTData(scheme; shape = shape)
