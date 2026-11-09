@@ -9,7 +9,7 @@ c4 & inversion symmetric Loop Optimization for Tensor Network Renormalization
 
 # Running the algorithm
     run!(::SLoopTNR, trscheme::TruncationStrategy,
-              criterion::TNRKit.stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, oneloop=true,
+              criterion::TNRKit.stopcrit[, finalizer=default_Finalizer, oneloop=true,
               verbosity=1])
 
 `oneloop=true` will use disentangled tensors as a starting guess for the optimization.
@@ -194,17 +194,13 @@ end
 
 function run!(
         scheme::SLoopTNR, trscheme::TruncationStrategy,
-        criterion::TNRKit.stopcrit; finalizer = default_Finalizer, finalize_beginning = true, oneloop = true,
+        criterion::TNRKit.stopcrit; finalizer = default_Finalizer, oneloop = true,
         verbosity = 1
     )
     data = output_type(finalizer)[]
 
     LoggingExtras.withlevel(; verbosity) do
         @infov 1 "Starting simulation\n $(scheme)\n"
-
-        if finalize_beginning
-            push!(data, finalizer.f!(scheme))
-        end
         steps = 0
         crit = true
 

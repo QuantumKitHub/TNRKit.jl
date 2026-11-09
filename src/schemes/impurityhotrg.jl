@@ -7,7 +7,7 @@ Single impurity method for Higher-Order Tensor Renormalization Group (for 2nd or
     $(FUNCTIONNAME)(T, T_imp_order1_1, T_imp_order1_2, T_imp_order2)
 
 # Running the algorithm
-    run!(::ImpurityHOTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityHOTRG_Finalizer, finalize_beginning=true, verbosity=1])
+    run!(::ImpurityHOTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=ImpurityHOTRG_Finalizer, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of 2
 

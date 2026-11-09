@@ -1,5 +1,4 @@
 # Extra code to make output type available
-function step! end
 function finalize! end
 
 """
@@ -10,7 +9,7 @@ Finalizer for TNR schemes
 # Constructors
     Finalizer(f!::Function, E::Type)
 
-A Finalizer holds a function `f!` that is to be applied to a TNR scheme after each step of the algorithm (and at the beginning if specified by `run!(;finalize_beginning=true)`, which is the default behavior).
+A Finalizer holds a function `f!` that is to be applied to a TNR scheme after each step of the algorithm.
 The type parameter `E` indicates the output type of `f!`, which is used to create an array of the correct type to hold the outputs.
 """
 struct Finalizer{E} # E is the output type of f
@@ -30,16 +29,14 @@ const ImpurityHOTRG_Finalizer = Finalizer(finalize!, Tuple{Float64, Float64, Flo
 # Finalization functions for the various TNR schemes
 abstract type TNRScheme{E, S} end
 
-function run!(scheme::TNRScheme, trscheme::TruncationStrategy, criterion::stopcrit, finalizer::Finalizer{E}; finalize_beginning = true, verbosity = 1) where {E}
+# TODO: This should be eventually replaced by `run!(renorm::Renormalizer; verbosity = 1)`.
+# Finalizers will be dropped at the end.
+function run!(scheme::TNRScheme, trscheme::TruncationStrategy, criterion::stopcrit, finalizer::Finalizer{E}; verbosity = 1) where {E}
     data = Vector{E}()
 
     LoggingExtras.withlevel(; verbosity) do
 
         @infov 1 "Starting simulation\n $(scheme)\n"
-        if finalize_beginning
-            push!(data, finalizer.f!(scheme))
-        end
-
         steps = 0
         crit = true
 
