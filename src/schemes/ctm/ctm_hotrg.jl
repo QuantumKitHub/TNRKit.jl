@@ -1,18 +1,36 @@
-mutable struct ctm_HOTRG{A, S} <: TNRScheme
-    T::TensorMap{A, S, 2, 2}
-    C2::TensorMap{A, S, 1, 1}
-    E1::TensorMap{A, S, 2, 1}
-    E2::TensorMap{A, S, 2, 1}
+"""
+$(TYPEDEF)
+
+Corner Transfer Matrix environment + Higher-Order Tensor Renormalization Group
+
+# Constructors
+    $(FUNCTIONNAME)(T, χenv[, ctm_iter=maxiter(2.0e4), ctm_tol=trivial_convcrit(1.0e-9), ctm_obc=false, χenv_ini=2])
+
+# Running the algorithm
+    run!(::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit[, sweep=30, inv=false, conv_criterion=1.0e-12])
+
+# Fields
+
+$(TYPEDFIELDS)
+
+# References
+* [Morita & Kawashima Phys. Rev. B 103(4) (2021)](@cite morita2021)
+"""
+mutable struct ctm_HOTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, TC <: AbstractTensorMap{E, S, 1, 1}, TE <: AbstractTensorMap{E, S, 2, 1}} <: TNRScheme{E, S}
+    T::TT
+    C2::TC
+    E1::TE
+    E2::TE
     χenv::Int64
     function ctm_HOTRG(
-            T::TensorMap{A, S, 2, 2},
+            T::TT,
             χenv::Int64;
             ctm_iter = maxiter(2.0e4),
             ctm_tol = trivial_convcrit(1.0e-9),
             ctm_obc = false,
             χenv_ini = 2,
-        ) where {A, S}
-        if eltype(T) != Float64
+        ) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
+        if E != Float64
             @error "This scheme only supports tensors with real numbers"
         end
         scheme_init = TNRKit.rCTM(T)
@@ -20,14 +38,14 @@ mutable struct ctm_HOTRG{A, S} <: TNRScheme
         @info "Finding the environment using rCTM..."
         run!(
             scheme_init,
-            truncdim(χenv),
+            truncrank(χenv),
             ctm_tol & ctm_iter;
             verbosity = 0,
         )
         @info "rCTM finished"
         C2, E1, E2 = scheme_init.C2, scheme_init.E1, scheme_init.E2
         @assert BraidingStyle(sectortype(T)) == Bosonic() "$(summary(BraidingStyle(sectortype(T)))) braiding style is not supported for rCTM"
-        return new{A, S}(T, C2, E1, E2, χenv)
+        return new{E, S, TT, typeof(C2), typeof(E1)}(T, C2, E1, E2, χenv)
     end
 end
 
@@ -36,8 +54,7 @@ function abs_tensor!(T)
     return T
 end
 
-function rCTM_init_OBC(T; χenv_ini = 2)
-    elt = typeof(T.data[1])
+function rCTM_init_OBC(T::AbstractTensorMap{E}; χenv_ini = 2) where {E}
     Vp1 = space(T)[3]'
     Vp2 = space(T)[4]'
     S1 = sectortype(Vp1)
@@ -45,9 +62,9 @@ function rCTM_init_OBC(T; χenv_ini = 2)
     S2 = sectortype(Vp2)
     V2 = Vect[S2](one(S2) => χenv_ini)
 
-    C = TensorMap(randn, elt, V1 ← V2)
-    E1 = TensorMap(randn, elt, V1 ⊗ Vp1 ← V1)
-    E2 = TensorMap(randn, elt, V2 ⊗ Vp2 ← V2)
+    C = randn(E, V1 ← V2)
+    E1 = randn(E, V1 ⊗ Vp1 ← V1)
+    E2 = randn(E, V2 ⊗ Vp2 ← V2)
 
     return abs_tensor!(C), abs_tensor!(E1), abs_tensor!(E2)
 end
@@ -60,7 +77,7 @@ end
 
 function find_UVt(scheme::ctm_HOTRG, trunc)
     mat = corner_matrix(scheme)
-    U, S, Vt = tsvd(mat; trunc = trunc & truncbelow(1.0e-20))
+    U, S, Vt = svd_trunc(mat; trunc = trunc & trunctol(atol = 1.0e-20))
     return mat, U, S, Vt
 end
 
@@ -102,8 +119,8 @@ function step!(
 
     tr_norm = tr_tensor(scheme.T; inv = inv)
     scheme.T /= tr_norm
-    scheme.E1 /= norm(scheme.E1)
-    scheme.E2 /= norm(scheme.E2)
+    normalize!(scheme.E1)
+    normalize!(scheme.E2)
     for _ in 0:sweep
         rctm_step!(scheme)
     end
@@ -111,30 +128,22 @@ function step!(
 end
 
 function run!(
-        scheme::ctm_HOTRG, trunc::TensorKit.TruncationScheme, criterion::stopcrit;
-        sweep = 30, return_cft = false, inv = false, conv_criterion = 1.0e-12
+        scheme::ctm_HOTRG, trunc::TruncationStrategy, criterion::stopcrit;
+        sweep = 30, inv = false, conv_criterion = 1.0e-12
     )
     area = 1
     lnz = 0.0
-    cft = []
 
     for i in 1:(criterion.n)
         area *= 4.0
         tr_norm = step!(scheme, trunc; sweep = sweep, inv = inv)
-        if return_cft
-            push!(cft, cft_data(scheme; unitcell = 2))
-        end
         lnz += log(tr_norm) / area
         if abs(log(abs(tr_norm)) / area) <= conv_criterion
             @info "CTM-HOTRG converged after $i iterations!"
             break
         end
     end
-    if return_cft
-        return lnz, cft
-    else
-        return lnz
-    end
+    return lnz
 end
 
 function Base.show(io::IO, scheme::ctm_HOTRG)

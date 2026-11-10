@@ -1,0 +1,267 @@
+using Test
+using TNRKit
+using TensorKit
+using TensorKitSectors
+
+println("--------------------")
+println(" Testing all models ")
+println("--------------------")
+
+# Pre-computed anisotropic Ising critical values for testing (Jx=1, Jy=0.5)
+const ising_aniso_βc_1_05 = 0.6093778634360062
+const f_onsager_aniso_1_05 = -1.5741477440817498
+
+model_temp_answer_string_2d = [
+    (classical_ising(Trivial), ising_βc, f_onsager, "2D Ising model with no symmetry"),
+    (classical_ising(), ising_βc, f_onsager, "2D Ising model with ℤ₂ symmetry"),
+    (classical_ising(ising_aniso_βc_1_05; Jx = 1.0, Jy = 0.5), ising_aniso_βc_1_05, f_onsager_aniso_1_05, "2D anisotropic Ising model Jx=1,Jy=0.5 with ℤ₂ symmetry"),
+    (classical_ising(Trivial, ising_aniso_βc_1_05; Jx = 1.0, Jy = 0.5), ising_aniso_βc_1_05, f_onsager_aniso_1_05, "2D anisotropic Ising model Jx=1,Jy=0.5 with no symmetry"),
+    (gross_neveu_start(0, 0, 0), 1.0, -1.4515448845652446, "Gross-Neveu model"),
+    (classical_clock(Trivial, 3, 2.0 * log(√3 + 1) / 3), 2.0 * log(√3 + 1) / 3, -4.17924244901635, "3-state clock model with no symmetry"), # This is an approximation!
+    (classical_clock(Z3Irrep, 3, 2.0 * log(√3 + 1) / 3), 2.0 * log(√3 + 1) / 3, -4.17924244901635, "3-state clock model with ℤ₃ symmetry"), # This is an approximation!
+    (classical_clock(D3Irrep, 3, 2.0 * log(√3 + 1) / 3), 2.0 * log(√3 + 1) / 3, -4.17924244901635, "3-state clock model with D₃ symmetry"), # This is an approximation!
+    (classical_clock(Trivial, 4, log(√2 + 1)), log(√2 + 1), 2 * f_onsager, "4-state clock model with no symmetry"), # It can be proved that 4-state clock model is equivalent to two layers of Ising model.
+    (classical_clock(Z4Irrep, 4, log(√2 + 1)), log(√2 + 1), 2 * f_onsager, "4-state clock model with ℤ₄ symmetry"),
+    (classical_clock(D4Irrep, 4, log(√2 + 1)), log(√2 + 1), 2 * f_onsager, "4-state clock model with D₄ symmetry"),
+    (classical_potts(Trivial, 3), potts_βc(3), -4.119552029995684, "Potts model with no symmetry"), # This is an approximation!
+    (classical_potts(3), potts_βc(3), -4.119552029995684, "Potts model with ℤ₃ symmetry"), # This is an approximation!
+    (sixvertex(Trivial), 1.0, 3 / 2 * log(3 / 4), "Six-vertex model with no symmetry"),
+    (sixvertex(U1Irrep), 1.0, 3 / 2 * log(3 / 4), "Six-vertex model with U(1) symmetry"),
+    (sixvertex(), 1.0, 3 / 2 * log(3 / 4), "Six-vertex model with CU(1) symmetry"),
+    # (classical_XY(U1Irrep, 0.89351, 6), 0.89351, -1.0251, "Classical XY model with U(1) symmetry"), # This is an approximation!
+    # (classical_XY(CU1Irrep, 0.89351, 6), 0.89351, -1.0251, "Classical XY model with CU(1) symmetry"), # This is an approximation!
+    (phi4_real(Trivial, 10, -1.0, 1.0), -1.0, 0.4241912271276211, "Real φ⁴ model with no symmetry"), # This is an approximation!
+    (phi4_real(10, -1.0, 1.0), -1.0, 0.4232381701937374, "Real φ⁴ model with ℤ₂ symmetry"), # This is an approximation!
+    (phi4_complex(Trivial, 6, -1.0, 1.0), -1.0, 0.7583605364656325, "Complex φ⁴ model with no symmetry"), # This is an approximation!
+    (phi4_complex(6, -1.0, 1.0), -1.0, 0.7673189874157453, "Complex φ⁴ model with U(1) symmetry"), # This is an approximation!
+    (phi4_complex(Z2Irrep ⊠ Z2Irrep, 6, -1.0, 1.0), -1.0, 0.7665677554973079, "Complex φ⁴ model with ℤ₂ × ℤ₂ symmetry"), # This is an approximation!
+]
+
+model_temp_answer_string_3d = [
+    (classical_ising_3D(Trivial), ising_βc_3D, -3.508, "3D Ising model with no symmetry"), # This is an approximation!
+    (classical_ising_3D(), ising_βc_3D, -3.508, "3D Ising model with ℤ₂ symmetry"), # This is an approximation!
+]
+
+for (model, temp, answer, description) in model_temp_answer_string_2d
+    @testset "$(description)" begin
+        scheme = TRG(model)
+        data = run!(scheme, truncrank(16), maxiter(25))
+        @test free_energy(data, temp) ≈ answer rtol = 1.0e-3
+    end
+end
+
+@testset "LoopTNR - 2D XY model" begin
+    @info "Central charge of KT phase with U(1) symmetry"
+    T_KT = classical_XY(U1Irrep, XY_βc + 0.1, 8)
+    scheme = LoopTNR(T_KT)
+    data = run!(scheme, truncrank(16), maxiter(20))
+    cft = CFTData(scheme)
+    central_charge = cft.central_charge
+    @test central_charge ≈ 1.0 atol = 1.0e-2
+    @info "Obtained central charge:\n$central_charge."
+
+    @info "Central charge of symmetric phase with U(1) symmetry"
+    T_sym = classical_XY(U1Irrep, XY_βc - 0.1, 8)
+    scheme = LoopTNR(T_sym)
+    data = run!(scheme, truncrank(16), maxiter(20))
+    cft = CFTData(scheme)
+    central_charge = cft.central_charge
+    @test central_charge ≈ 0.0 atol = 1.0e-10
+    @info "Obtained central charge:\n$central_charge."
+
+    @info "Central charge of KT phase with O(2) symmetry"
+    T_KT = classical_XY(CU1Irrep, XY_βc + 0.1, 8)
+    scheme = LoopTNR(T_KT)
+    data = run!(scheme, truncrank(16), maxiter(20))
+    cft = CFTData(scheme)
+    central_charge = cft.central_charge
+    @test central_charge ≈ 1.0 atol = 1.0e-2
+    @info "Obtained central charge:\n$central_charge."
+
+    @info "Central charge of symmetric phase with O(2) symmetry"
+    T_sym = classical_XY(CU1Irrep, XY_βc - 0.1, 8)
+    scheme = LoopTNR(T_sym)
+    data = run!(scheme, truncrank(16), maxiter(20))
+    cft = CFTData(scheme)
+    central_charge = cft.central_charge
+    @test central_charge ≈ 0.0 atol = 1.0e-10
+    @info "Obtained central charge:\n$central_charge."
+end
+
+# Tests for anisotropic Ising helper functions
+@testset "Anisotropic Ising helpers" begin
+    # Critical condition: sinh(2βc Jx) · sinh(2βc Jy) = 1, and βc scaling
+    for (Jx, Jy) in [(1.0, 1.0), (1.0, 0.5), (1.0, 0.3), (2.0, 2.0)]
+        βc = ising_anisotropic_βc(Jx, Jy)
+        @test sinh(2 * Float64(βc) * Jx) * sinh(2 * Float64(βc) * Jy) ≈ 1.0 rtol = 1.0e-14
+        if Jx == Jy
+            @test Float64(βc) ≈ Float64(ising_βc) / Jx  # βc scales as 1/J
+        end
+    end
+
+    # Free energy scaling: f(β, J, J) = J · f_iso(β·J)
+    for (β, J) in [(Float64(ising_βc), 1.0), (0.5, 2.0), (0.3, 1.5)]
+        βc = ising_anisotropic_βc(J, J)
+        f_J = f_onsager_anisotropic(β, J, J)
+        f_Jc = f_onsager_anisotropic(βc, J, J)
+        f_1 = f_onsager_anisotropic(β * J, 1.0, 1.0)
+        @test f_J ≈ J * f_1 rtol = 1.0e-6
+        @test f_Jc ≈ J * Float64(f_onsager) rtol = 1.0e-6
+    end
+
+    # Jy→0 limit: f should approach the 1D Ising result
+    β = 0.5
+    f_1d = -(log(2.0) + log(cosh(β))) / β
+    @test f_onsager_anisotropic(β, 1.0, 1.0e-10) ≈ f_1d rtol = 1.0e-6
+end
+
+for (model, temp, answer, description) in model_temp_answer_string_3d
+    @testset "$(description)" begin
+        scheme = HOTRG_3D(model)
+        data = run!(scheme, truncrank(8), maxiter(25))
+        @test free_energy(data, temp; scalefactor = 8.0) ≈ answer rtol = 1.0e-3
+    end
+end
+
+
+# Test for impurity tensors
+# Real phi^4
+@testset "Real φ⁴ model - Impure" begin
+    # Disordered phase
+    λ = 1.0
+    μ0 = 0.0
+
+    Tpure = phi4_real(Trivial, 10, μ0, λ)
+    T_imp1 = phi4_real_imp1(Trivial, 10, μ0, λ)
+    T_imp2 = phi4_real_imp2(Trivial, 10, μ0, λ)
+
+    scheme = ImpurityHOTRG(Tpure, T_imp1, T_imp1, T_imp2)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    order_para = data[end][4] / data[end][1]
+    @test order_para ≈ 0.0 atol = 1.0e-3
+
+    # Ordered phase
+    μ0 = -2.0
+
+    Tpure = phi4_real(Trivial, 10, μ0, λ)
+    T_imp1 = phi4_real_imp1(Trivial, 10, μ0, λ)
+    T_imp2 = phi4_real_imp2(Trivial, 10, μ0, λ)
+
+    scheme = ImpurityHOTRG(Tpure, T_imp1, T_imp1, T_imp2)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    order_para = data[end][4] / data[end][1]
+    @test order_para ≈ 1.5317112652447245 rtol = 1.0e-3
+end
+
+# Complex phi^4
+@testset "Complex φ⁴ model - Impure" begin
+    # Disordered phase
+    λ = 1.0
+    μ0 = 0.0
+
+    Tpure = phi4_complex(Trivial, 6, μ0, λ; T = ComplexF64)
+    T_imp11 = phi4_complex_impϕ(6, μ0, λ)
+    T_imp12 = phi4_complex_impϕdag(6, μ0, λ)
+    T_imp2 = phi4_complex_impϕ2(6, μ0, λ)
+
+    scheme = ImpurityHOTRG(Tpure, T_imp11, T_imp12, T_imp2)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    order_para = data[end][4] / data[end][1]
+    @test order_para ≈ 0.0 atol = 1.0e-3
+end
+
+# (1 + 1)D quantum chains
+
+function cc_finalize!(scheme::LoopTNR)
+    n = finalize!(scheme)
+    τ, c = extract_tau_and_c(scheme.TA, scheme.TB)
+    @info "c = $c, τ = $τ"
+    return (n, τ, c)
+end
+
+@testset "Quantum Ising chain: $stack_alg stacking" for stack_alg in (:exponential, :linear)
+    trunc_stack = truncerror(; rtol = 1.0e-9) & truncrank(16)
+    if stack_alg == :exponential
+        nfold = 7
+        dt = 1 / (2^nfold)
+        T = quantum_ising_chain(Float64, Z2Irrep, dt; J = 1.0, g = 1.0)
+        T = vertical_stack_exp(T, nfold, trunc_stack)
+    else
+        n = 100
+        dt = 1 / n
+        T = quantum_ising_chain(Float64, Z2Irrep, dt; J = 1.0, g = 1.0)
+        T = vertical_stack_linear(T, n, trunc_stack)
+    end
+    scheme = LoopTNR(T)
+    elt = scalartype(T)
+    finalizer = Finalizer(cc_finalize!, Tuple{elt, complex(elt), elt})
+    data = run!(scheme, truncrank(16), maxiter(16), finalizer; finalize_beginning = false)
+    @test last(data)[3] ≈ 0.5 atol = 1.0e-2
+end
+
+@testset "Quantum Kitaev chain: Ising case" begin
+    trunc_stack = truncerror(; rtol = 1.0e-9) & truncrank(16)
+    nfold = 7
+    dt = 1 / (2^nfold)
+    T = kitaev_chain(Float64, Trivial, dt; t = 1.0, Δ = 1.0, V = 0.0, μ = 2.0)
+    T = vertical_stack_exp(T, nfold, trunc_stack)
+
+    @info "CFT data from TRG"
+    scheme = TRG(T)
+    run!(scheme, truncrank(24), maxiter(8))
+    cft = CFTData(scheme; shape = [1, 1, 0])
+    c = cft.central_charge
+    sd = cft.scaling_dimensions
+    d_1 = real(sd[(:NS, FermionParity(0))][2])
+    d_f = real(sd[(:NS, FermionParity(1))][1])
+    d_e = real(sd[(:R, FermionParity(0))][1])
+    d_m = real(sd[(:R, FermionParity(1))][1])
+    @info "  shape [1, 1, 0]:\nΔ(1)=$d_1, Δ(f)=$d_f, Δ(e)=$d_e, Δ(m)=$d_m, c=$c"
+    @test d_1 ≈ 1 rtol = 2.0e-2
+    @test d_f ≈ 1 / 2 rtol = 2.0e-2
+    @test d_e ≈ 1 / 8 rtol = 2.0e-2
+    @test d_m ≈ 1 / 8 rtol = 2.0e-2
+    @test c ≈ 0.5 rtol = 2.0e-2
+
+    @info "CFT data from LoopTNR"
+    scheme = LoopTNR(T)
+    elt = scalartype(T)
+    finalizer = Finalizer(cc_finalize!, Tuple{elt, complex(elt), elt})
+    data = run!(scheme, truncrank(16), maxiter(8), finalizer; finalize_beginning = false)
+    @test last(data)[3] ≈ 0.5 atol = 1.0e-2
+    for shape in ([√2, 2√2, 0], [1, 4, 1], [1, 8, 1], [4 / √10, 2√10, 2 / √10])
+        cft = CFTData(scheme; shape = shape)
+        c = cft.central_charge
+        sd = cft.scaling_dimensions
+        d_1 = real(sd[(:NS, FermionParity(0))][2])
+        d_f = real(sd[(:NS, FermionParity(1))][1])
+        d_e = real(sd[(:R, FermionParity(0))][1])
+        d_m = real(sd[(:R, FermionParity(1))][1])
+        @info "  shape $shape:\nΔ(1)=$d_1, Δ(f)=$d_f, Δ(e)=$d_e, Δ(m)=$d_m, c=$c"
+        @test d_1 ≈ 1 rtol = 1.0e-2
+        @test d_f ≈ 1 / 2 rtol = 1.0e-2
+        @test d_e ≈ 1 / 8 rtol = 1.0e-2
+        @test d_m ≈ 1 / 8 rtol = 1.0e-2
+        @test c ≈ 0.5 rtol = 1.0e-2
+
+        shape[end] == 0 && continue
+        for sect in (
+                (:NS, FermionParity(0)), (:NS, FermionParity(1)),
+                (:R, FermionParity(0)), (:R, FermionParity(1)),
+            )
+            for v in sd[sect]
+                Δ, s = real(v), -imag(v)
+                Δ > 2.5 && break
+                s′ = (sect == (:NS, FermionParity(1))) ? s - 0.5 : s
+                @test isapprox(s′, round(s′); atol = 1.0e-2)
+            end
+            @info "  Conformal spins are integer (for 1, e, m) or half-integer (for f)."
+        end
+    end
+end

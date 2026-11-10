@@ -10,9 +10,12 @@ makedocs(;
     pages = [
         "Home" => "index.md"
         "Library" => "lib/lib.md"
+        "Quantum 1+1D" => "quantum_1D.md"
+        "CFT Data" => "cft.md"
+        "Finalizers" => "finalizers.md"
         "References" => "references.md"
     ],
     plugins = [bib]
 )
 
-deploydocs(; repo = "github.com/VictorVanthilt/TNRKit.jl.git", push_preview = true)
+deploydocs(; repo = "github.com/QuantumKitHub/TNRKit.jl.git", push_preview = true)

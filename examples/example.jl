@@ -7,14 +7,14 @@ trg_f(steps::Int, data) = abs(log(data[end]) * 2.0^(-steps))
 stopping_criterion = convcrit(1.0e-16, trg_f) & maxiter(20)
 
 # choose a TensorKit truncation scheme
-trunc = truncdim(16) & truncbelow(1.0e-40)
+trunc = truncrank(16) & trunctol(atol = 1.0e-40)
 
 # initialize the TRG scheme
 scheme = TRG(classical_ising(1.0))
 
 # run the TRG scheme (and normalize and store the norm in the beginning (finalize_beginning=true))
 data = run!(scheme, trunc, stopping_criterion; finalize_beginning = true)
-# or: data = run!(scheme, truncdim(16)), this will default to maxiter(100)
+# or: data = run!(scheme, truncrank(16)), this will default to maxiter(100)
 
 # initialize the BTRG scheme
 scheme = BTRG(classical_ising(1.0), -0.5)

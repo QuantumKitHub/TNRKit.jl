@@ -20,15 +20,29 @@ Many common TNR schemes have already been implemented:
 * [`HOTRG`](@ref) (higher order TRG)
 * [`ATRG`](@ref) (anisotropic TRG)
 
-**CTM methods (yet to be documented)**
-* `ctm_TRG` (Corner Transfer Matrix environment + TRG)
-* `ctm_HOTRG` (Corner Transfer Matrix environment + HOTRG)
-* `c4CTM` (c4 symmetric CTM)
-* `rCTM` (reflection symmetric CTM)
+**2D square CTM methods**
+* [`CTM`](@ref) (Corner Transfer Matrix)
+* [`c4vCTM`](@ref) (c4v symmetric CTM)
+* [`rCTM`](@ref) (reflection symmetric CTM)
+* [`ctm_TRG`](@ref) (Corner Transfer Matrix environment + TRG)
+* [`ctm_HOTRG`](@ref) (Corner Transfer Matrix environment + HOTRG)
+
+**2D triangular CTM methods**
+* [`c6vCTM_triangular`](@ref) (c6v symmetric CTM on the triangular lattice)
+* [`CTM_triangular`](@ref) (CTM on the triangular lattice)
+
+**2D honeycomb CTM methods**
+* [`c3vCTM_honeycomb`](@ref) (c3v symmetric CTM on the honeycomb lattice)
+* [`CTM_honeycomb`](@ref) (CTM on the honeycomb lattice)
+
+**Impurity Methods**
+* [`ImpurityTRG`](@ref)
+* [`ImpurityHOTRG`](@ref)
 
 **3D cubic tensor networks**
 * [`ATRG_3D`](@ref) (anisotropic TRG)
 * [`HOTRG_3D`](@ref) (higher order TRG)
+* [`ThermalTNR`](@ref) (thermal TNR)
 
 # Quick Start Guide
 1. Choose a (TensorKit!) tensor that respects the leg-convention (see below)
@@ -40,9 +54,9 @@ For example:
 ```julia
 using TNRKit, TensorKit
 
-T = classical_ising_symmetric(ising_βc) # partition function of classical Ising model at the critical point
+T = classical_ising(ising_βc) # partition function of classical Ising model at the critical point
 scheme = BTRG(T) # Bond-weighted TRG (excellent choice)
-data = run!(scheme, truncdim(16), maxiter(25)) # max bond-dimension of 16, for 25 iterations
+data = run!(scheme, truncrank(16), maxiter(25)) # max bond-dimension of 16, for 25 iterations
 ```
 `data` now contains 26 norms of the tensor, 1 for every time the tensor was normalized. (By default there is a normalization step before the first coarse-graining step wich can be turned off by changing the kwarg `run!(...; finalize_beginning=false)`)
 
@@ -66,12 +80,30 @@ There are 3 levels of verbosity implemented in TNRKit:
   
 to choose the verbosity level, simply use `run!(...; verbosity=n)`. The default is `verbosity=1`.
 
-## Included Models
+## Included Models on the square lattice
 TNRKit includes several common models out of the box.
-- Ising model: [`classical_ising`](@ref) and [`classical_ising_symmetric`](@ref), which has a Z2 grading on each leg.
-- Potts model: [`classical_potts`](@ref) and [`classical_potts_symmetric`](@ref), which has a Zq grading on each leg.
-- Six Vertex model: [`sixvertex`](@ref)
-- Clock model: [`classical_clock`](@ref)
+- Ising model in 2D: `classical_ising(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+- Ising model in 2D with impurities: `classical_ising_impurity(β; h=0)`.
+- Ising model in 3D: `classical_ising_3D(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+- Potts model in 2D: `classical_potts(S, q, β)`, where `S` can be `Trivial` or `ZNIrrep{q}` to specify the symmetry.
+- Potts model in 2D with impurities: `classical_potts_impurity(q, β)`.
+- Six Vertex model: `sixvertex(S, elt; a=1.0, b=1.0, c=1.0)` where `S` can be `Trivial`, `U1Irrep` or `CU1Irrep` to specify the symmetry and `elt` can be any number type (default is `Float64`).
+- Clock model: `classical_clock(S, q, β)` where `S` can be `Trivial`, `ZNIrrep{q}` or `DNIrrep{q}` to specify the symmetry.
+- ZN Gauge theory in 3D: `ZN_gaugetheory_dual(N, β)` where `N` is the order of the gauge group.
+- XY model in 2D: `classical_XY(S, β, charge_trunc)` where `S` can be `U1Irrep` or `CU1Irrep` to specify the symmetry.
+- Real $\phi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+- Real $\phi^4$ model with impurities: `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` can be `Trivial`.
+- Complex $\phi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep` or `U1Irrep` to specify the symmetry.
+- Gross-Neveu model: `gross_neveu_start(S, μ, m, g)` where `S` can be `FermionParity` to specify the symmetry.
+
+## Included Models on the triangular lattice
+TNRKit includes several common models out of the box.
+- Ising model: `classical_ising_triangular(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+
+## Included Models on the honeycomb lattice
+TNRKit includes several common models out of the box.
+- Ising model: `classical_ising_honeycomb(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+  
 If you want to implement your own model you must respect the leg-convention assumed by all TNRKit schemes.
 
 ## Leg-convention

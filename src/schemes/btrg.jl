@@ -3,11 +3,11 @@ $(TYPEDEF)
 
 Bond-weighted Tensor Renormalization Group
 
-### Constructors
-    $(FUNCTIONNAME)(T [, k=-1/2, finalize=finalize!])
+# Constructors
+    $(FUNCTIONNAME)(T [, k=-1/2])
 
-### Running the algorithm
-    run!(::BTRG, trunc::TensorKit.TruncationSheme, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
+# Running the algorithm
+    run!(::BTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
 
@@ -16,28 +16,36 @@ Each step rescales the lattice by a (linear) factor of √2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
-* [Adachi et. al. Phys. Rev. B 105 (2022)](@cite adachiBondweightedTensorRenormalization2022)
+# References
+* [Adachi et. al. Phys. Rev. B 105 (2022)](@cite adachi2022)
 """
-mutable struct BTRG <: TNRScheme
-    T::TensorMap
-    S1::TensorMap
-    S2::TensorMap
+mutable struct BTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, BT <: AbstractTensorMap{E, S, 1, 1}} <: TNRScheme{E, S}
+    "Central tensor"
+    T::TT
+
+    "Bond tensor on vertical bonds"
+    S1::BT
+
+    "Bond tensor on horizontal bonds"
+    S2::BT
+
+    "Bond weight exponent"
     k::Float64
 
-    finalize!::Function
-    function BTRG(T::TensorMap{E, S, 2, 2}, k::Number; finalize = (finalize!)) where {E, S}
+    function BTRG(T::TT, k::Number) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
         # Construct S1 and S2 as identity matrices.
-        return new(T, id(space(T, 2)), id(space(T, 1)), k, finalize)
+        S1 = id(E, space(T, 2))
+        S2 = id(E, space(T, 1))
+        return new{E, S, TT, typeof(S1)}(T, S1, S2, k)
     end
 end
 
 # Default implementation using the optimal value for k
-BTRG(T::TensorMap; kwargs...) = BTRG(T, -0.5; kwargs...)
+BTRG(T) = BTRG(T, -0.5)
 
 function pseudopow(t::DiagonalTensorMap, a::Real; tol = eps(scalartype(t))^(3 / 4))
     t′ = copy(t)
@@ -49,8 +57,8 @@ function pseudopow(t::DiagonalTensorMap, a::Real; tol = eps(scalartype(t))^(3 / 
     return t′
 end
 
-function step!(scheme::BTRG, trunc::TensorKit.TruncationScheme)
-    U, S, V, _ = tsvd(scheme.T, ((1, 2), (3, 4)); trunc = trunc)
+function step!(scheme::BTRG, trunc::TruncationStrategy)
+    U, S, V, _ = svd_trunc(scheme.T; trunc = trunc)
 
     S_a = pseudopow(S, (1 - scheme.k) / 2)
     S_b = pseudopow(S, scheme.k)
@@ -61,7 +69,7 @@ function step!(scheme::BTRG, trunc::TensorKit.TruncationScheme)
         S1′[-1; -2] := S_b[-1; -2]
     end
 
-    U, S, V, _ = tsvd(scheme.T, ((3, 1), (4, 2)); trunc = trunc)
+    U, S, V, _ = svd_trunc(permute(scheme.T, ((3, 1), (4, 2))); trunc = trunc)
 
     S_a = pseudopow(S, (1 - scheme.k) / 2)
     S_b = pseudopow(S, scheme.k)

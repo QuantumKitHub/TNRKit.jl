@@ -3,11 +3,11 @@ $(TYPEDEF)
 
 Anisotropic Tensor Renormalization Group
 
-### Constructors
-    $(FUNCTIONNAME)(T [, finalize=finalize!])
+# Constructors
+    $(FUNCTIONNAME)(T)
 
-### Running the algorithm
-    run!(::ATRG, trunc::TensorKit.TruncationSheme, stop::Stopcrit[, finalize_beginning=true, verbosity=1])
+# Running the algorithm
+    run!(::ATRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
 Each step rescales the lattice by a (linear) factor of √2
 
@@ -16,23 +16,23 @@ Each step rescales the lattice by a (linear) factor of √2
     - 1: Print information at start and end of the algorithm
     - 2: Print information at each step
 
-### Fields
+# Fields
 
 $(TYPEDFIELDS)
 
-### References
-* [Adachi et. al. Phys. Rev. B 102 (2020)](@cite adachiAnisotropicTensorRenormalization2020)
+# References
+* [Adachi et. al. Phys. Rev. B 102 (2020)](@cite adachi2020)
 """
-mutable struct ATRG <: TNRScheme
-    T::TensorMap
+mutable struct ATRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}} <: TNRScheme{E, S}
+    "Central tensor"
+    T::TT
 
-    finalize!::Function
-    function ATRG(T::TensorMap{E, S, 2, 2}; finalize = (finalize!)) where {E, S}
-        return new(T, finalize)
+    function ATRG(T::TT) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
+        return new{E, S, TT}(T)
     end
 end
 
-function step!(scheme::ATRG, trunc::TensorKit.TruncationScheme)
+function step!(scheme::ATRG, trunc::TruncationStrategy)
     _step!(scheme, trunc)
 
     scheme.T = permute(scheme.T, ((2, 4), (1, 3)))
@@ -42,8 +42,8 @@ function step!(scheme::ATRG, trunc::TensorKit.TruncationScheme)
     return scheme.T = permute(scheme.T, ((3, 1), (4, 2)))
 end
 
-function _step!(scheme::ATRG, trunc::TensorKit.TruncationScheme)
-    A, S, B, _ = tsvd(scheme.T, ((1, 3), (2, 4)); trunc = trunc)
+function _step!(scheme::ATRG, trunc::TruncationStrategy)
+    A, S, B, _ = svd_trunc(permute(scheme.T, ((1, 3), (2, 4))); trunc = trunc)
     C, D = deepcopy.([A, B])
 
     @tensor begin
@@ -53,7 +53,7 @@ function _step!(scheme::ATRG, trunc::TensorKit.TruncationScheme)
 
     @tensor M[-1 -2; -3 -4] := B[-3; 1 -4] * C[-1 1; -2]
 
-    X, S, Y, _ = tsvd(M, ((1, 3), (2, 4)); trunc = trunc)
+    X, S, Y, _ = svd_trunc(permute(M, ((1, 3), (2, 4))); trunc = trunc)
     sqrtS = sqrt(S)
 
     @tensor begin
@@ -64,7 +64,7 @@ function _step!(scheme::ATRG, trunc::TensorKit.TruncationScheme)
     @tensor Q[-1 -2; -3 -4] := A[3 -3; 2] * D[1; -2 4] * X[4 2; -4] *
         Y[-1 1; 3]
 
-    H, S, G, _ = tsvd(Q; trunc = trunc)
+    H, S, G, _ = svd_trunc(Q; trunc = trunc)
     sqrtS = sqrt(S)
 
     @tensor begin

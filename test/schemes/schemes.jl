@@ -1,0 +1,749 @@
+using Test
+using TNRKit
+using TensorKit
+
+# This tests every scheme in the library on the Z2 symmetric Ising model.
+println("---------------------")
+println(" Testing all schemes ")
+println("---------------------")
+
+T = classical_ising()
+T_3D = classical_ising_3D()
+const f_benchmark3D = ising_3D_free_energy_htse()
+
+const Jx_aniso, Jy_aniso = 1.0, 0.6
+const βc_aniso = ising_anisotropic_βc(Jx_aniso, Jy_aniso)
+const T_aniso = classical_ising(Z2Irrep, βc_aniso; Jx = Jx_aniso, Jy = Jy_aniso)
+const f_aniso_exact = f_onsager_anisotropic(βc_aniso, Jx_aniso, Jy_aniso)
+const τ_aniso_exact = sinh(2 * βc_aniso * Jx_aniso)
+
+function cft_finalize!(scheme)
+    finalize!(scheme)
+    return CFTData(scheme)
+end
+
+"""
+Normalize the tensor, return the normalization factor and elementary modular parameter
+"""
+function tau_finalize!(scheme::TRG)
+    n = finalize!(scheme)
+    τ0, c = extract_tau_and_c(scheme.T; fast = false)
+    return (n, τ0)
+end
+function tau_finalize!(scheme::LoopTNR)
+    n = finalize!(scheme)
+    τ0, c = extract_tau_and_c(scheme.TA, scheme.TB; fast = false)
+    return (n, τ0)
+end
+
+# TRG
+@testset "TRG - Anisotropic Ising Model" begin
+    @info "Anisotropy: Jx = $(Jx_aniso), Jy = $(Jy_aniso)"
+    @info "TRG anisotropic ising free energy"
+    scheme = TRG(T_aniso)
+    elt = scalartype(T_aniso)
+    finalizer = Finalizer(tau_finalize!, Tuple{elt, complex(elt)})
+    data = run!(scheme, truncrank(24), maxiter(25), finalizer)
+
+    ns = map(Base.Fix2(getindex, 1), data)
+    @test free_energy(ns, βc_aniso) ≈ f_aniso_exact rtol = 2.0e-6
+
+    @info "TRG τ → (τ - 1) / (τ + 1)"
+    f_trg(τ) = (τ - 1) / (τ + 1)
+    τs = map(Base.Fix2(getindex, 2), data)
+    for n in 5:7
+        @test τs[n + 1] ≈ f_trg(τs[n]) rtol = 5.0e-2
+        @info "* verified for step $(n - 1) → $n"
+    end
+
+    @info "TRG anisotropic ising CFT data — shape [1, 1, 0]"
+    scheme = TRG(T_aniso)
+    run!(scheme, truncrank(24), maxiter(10))
+    # use fast tau algorithm below
+    cft = CFTData(scheme; shape = [1, 1, 0])
+    sd_all = real(cft.scaling_dimensions)
+    cft_sorted = sort(sd_all[2:end]; by = abs)
+
+    @test cft_sorted[1] ≈ ising_cft_exact[1] rtol = 2.0e-3
+    @test cft_sorted[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
+    @info "Obtained scaling dimensions: Δ₁ = $(cft_sorted[1]), Δ₂ = $(cft_sorted[2])"
+
+    @info "TRG anisotropic ising ground state degeneracy"
+    T1 = classical_ising(βc_aniso - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
+    scheme = TRG(T1)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 1 rtol = 1.0e-2
+    @test X1 ≈ 1.0 rtol = 1.0e-2
+    @test X2 ≈ 1.0 rtol = 1.0e-2
+
+    T2 = classical_ising(βc_aniso + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
+    scheme = TRG(T2)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 2 rtol = 1.0e-2
+    @test X1 ≈ 2.0 rtol = 1.0e-2
+    @test X2 ≈ 2.0 rtol = 1.0e-2
+end
+
+# BTRG
+@testset "BTRG - Ising Model" begin
+    @info "BTRG ising free energy"
+    scheme = BTRG(T)
+    data = run!(scheme, truncrank(24), maxiter(25))
+
+    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 6.0e-8
+
+    @info "BTRG ising CFT data"
+    scheme = BTRG(T)
+    run!(scheme, truncrank(24), maxiter(10))
+
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+
+    @test cft[1] ≈ ising_cft_exact[1] rtol = 3.0e-4
+    @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
+
+    @info "BTRG ising ground state degeneracy"
+    T1 = classical_ising(ising_βc - 0.01)
+    scheme = BTRG(T1)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 1 rtol = 1.0e-2
+    @test X1 ≈ 1.0 rtol = 1.0e-2
+    @test X2 ≈ 1.0 rtol = 1.0e-2
+
+    T2 = classical_ising(ising_βc + 0.01)
+    scheme = BTRG(T2)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 2 rtol = 1.0e-2
+    @test X1 ≈ 2.0 rtol = 1.0e-2
+    @test X2 ≈ 2.0 rtol = 1.0e-2
+end
+
+# HOTRG
+@testset "HOTRG - Ising Model" begin
+    @info "HOTRG ising free energy"
+    scheme = HOTRG(T)
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    @test free_energy(data, ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 6.0e-7
+
+    @info "HOTRG ising CFT data"
+    scheme = HOTRG(T)
+    run!(scheme, truncrank(16), maxiter(4))
+
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+
+    @test cft[1] ≈ ising_cft_exact[1] rtol = 6.0e-4
+    @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
+
+    @info "HOTRG ising ground state degeneracy"
+    T1 = classical_ising(ising_βc - 0.01)
+    scheme = HOTRG(T1)
+    run!(scheme, truncrank(12), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 1 rtol = 1.0e-2
+    @test X1 ≈ 1.0 rtol = 1.0e-2
+    @test X2 ≈ 1.0 rtol = 1.0e-2
+
+    T2 = classical_ising(ising_βc + 0.01)
+    scheme = HOTRG(T2)
+    run!(scheme, truncrank(12), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 2 rtol = 1.0e-2
+    @test X1 ≈ 2.0 rtol = 1.0e-2
+    @test X2 ≈ 2.0 rtol = 1.0e-2
+end
+
+# ATRG
+@testset "ATRG - Ising Model" begin
+    @info "ATRG ising free energy"
+    scheme = ATRG(T)
+    data = run!(scheme, truncrank(24), maxiter(25))
+
+    @test free_energy(data, ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 3.0e-6
+
+    @info "ATRG ising CFT data"
+    scheme = ATRG(T)
+    run!(scheme, truncrank(24), maxiter(3))
+
+    cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
+
+    @test cft[1] ≈ ising_cft_exact[1] rtol = 1.0e-2
+    @test cft[2] ≈ ising_cft_exact[2] rtol = 1.0e-2
+
+    @info "ATRG ising ground state degeneracy"
+    T1 = classical_ising(ising_βc - 0.01)
+    scheme = ATRG(T1)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 1 rtol = 1.0e-2
+    @test X1 ≈ 1.0 rtol = 1.0e-2
+    @test X2 ≈ 1.0 rtol = 1.0e-2
+
+    T2 = classical_ising(ising_βc + 0.01)
+    scheme = ATRG(T2)
+    run!(scheme, truncrank(16), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 2 rtol = 1.0e-2
+    @test X1 ≈ 2.0 rtol = 1.0e-2
+    @test X2 ≈ 2.0 rtol = 1.0e-2
+end
+
+# LoopTNR
+
+@testset "LoopTNR - Anisotropic Ising Model" begin
+    @info "Anisotropy: Jx = $(Jx_aniso), Jy = $(Jy_aniso)"
+    @info "LoopTNR anisotropic ising free energy"
+    scheme = LoopTNR(T_aniso)
+
+    loop_condition = LoopParameters(
+        sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
+        truncentanglement = trunctol(atol = 1.0e-12)
+    )
+    elt = scalartype(T_aniso)
+    finalizer = Finalizer(tau_finalize!, Tuple{elt, complex(elt)})
+    data = run!(scheme, truncrank(8), maxiter(25), loop_condition, finalizer)
+
+    ns = map(Base.Fix2(getindex, 1), data)
+    @test free_energy(ns, βc_aniso) ≈ f_aniso_exact rtol = 1.0e-6
+
+    @info "LoopTNR τ → (1 + τ) / (1 - τ)"
+    f_looptnr(τ) = (1 + τ) / (1 - τ)
+    τs = map(Base.Fix2(getindex, 2), data)
+    for n in 5:8
+        @test τs[n + 1] ≈ f_looptnr(τs[n]) rtol = 2.0e-2
+        @info "* verified for step $(n - 1) → $n"
+    end
+
+    @info "Theory value of τ for anisotropic Ising"
+    for n in (4, 8, 12)
+        # n + 1 due to finalizing the initial tensor
+        τ = τs[n + 1]
+        @test real(τ) ≈ 0 atol = 1.0e-3
+        @test imag(τ) ≈ τ_aniso_exact rtol = 2.0e-3
+        @info "* τ = $τ ≈ $(τ_aniso_exact)im verified for step $n"
+    end
+
+    @info "LoopTNR anisotropic ising CFT data"
+    scheme = LoopTNR(T_aniso)
+    run!(scheme, truncrank(12), maxiter(10))
+
+    # use fast tau algorithm below
+    for shape in ("[1, 4, 1]", "[√2, 2√2, 0]")
+        cft = CFTData(scheme; shape = eval(Meta.parse(shape)))
+        d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
+        d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
+        @info "Shape $shape: Δ(σ) = $d_σ, Δ(ε) = $d_ε, c = $(cft.central_charge)"
+        @test d_σ ≈ ising_cft_exact[1] rtol = 5.0e-4
+        @test d_ε ≈ ising_cft_exact[2] rtol = 5.0e-4
+        @test cft.central_charge ≈ 0.5 rtol = 5.0e-3
+        # conformal spins: only [1, 4, 1] (x=1) resolves them
+        if shape == "[1, 4, 1]"
+            sd = cft.scaling_dimensions
+            # σ (Z₂ odd, first state): s = 0
+            s_σ = -imag(sd[Z2Irrep(1)][1])
+            @test abs(s_σ) < 1.0e-6
+            # ε (Z₂ even, second state): s = 0
+            s_ε = -imag(sd[Z2Irrep(0)][2])
+            @test abs(s_ε) < 1.0e-6
+            # all spins in the low-lying spectrum should be integer
+            for sector in keys(sd)
+                for v in sd[sector]
+                    Δ, s = real(v), -imag(v)
+                    Δ > 2.5 && break  # check only low-lying states
+                    @test isapprox(s, round(s); atol = 1.0e-4)
+                end
+            end
+            @info "Conformal spins are integer-valued."
+        end
+    end
+
+    for shape in ("[1, 8, 1]", "[4/√10, 2√10, 2/√10]")
+        cft = CFTData(
+            scheme; shape = eval(Meta.parse(shape)), trunc = truncrank(16),
+            truncentanglement = trunctol(atol = 1.0e-10)
+        )
+        d_σ = real(cft.scaling_dimensions[Z2Irrep(1)][1])
+        d_ε = real(cft.scaling_dimensions[Z2Irrep(0)][2])
+        @info "Shape $shape:  Δ(σ) = $d_σ,  Δ(ε) = $d_ε,  c = $(cft.central_charge)"
+        @test d_σ ≈ ising_cft_exact[1] rtol = 2.0e-3
+        @test d_ε ≈ ising_cft_exact[2] rtol = 2.0e-3
+        @test cft.central_charge ≈ 0.5 rtol = 1.0e-2
+    end
+
+    @info "LoopTNR anisotropic ising ground state degeneracy"
+    T1 = classical_ising(βc_aniso - 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
+    scheme = LoopTNR(T1)
+    run!(scheme, truncrank(12), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 1 rtol = 1.0e-2
+    @test X1 ≈ 1.0 rtol = 1.0e-2
+    @test X2 ≈ 1.0 rtol = 1.0e-2
+
+    T2 = classical_ising(βc_aniso + 0.01; Jx = Jx_aniso, Jy = Jy_aniso)
+    scheme = LoopTNR(T2)
+    run!(scheme, truncrank(12), maxiter(20))
+    gsd = ground_state_degeneracy(scheme)
+    X1, X2 = gu_wen_ratio(scheme)
+    @test gsd ≈ 2 rtol = 1.0e-2
+    @test X1 ≈ 2.0 rtol = 1.0e-2
+    @test X2 ≈ 2.0 rtol = 1.0e-2
+end
+
+@testset "LoopTNR - Ising Model - Dense Solver - NNR" begin
+    @info "LoopTNR ising free energy"
+    scheme = LoopTNR(T)
+
+    loop_condition = LoopParameters(
+        sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
+        truncentanglement = trunctol(atol = 1.0e-12),
+        nuclear_norm = true
+    )
+
+    data = run!(
+        scheme, truncrank(8), maxiter(25), loop_condition
+    )
+
+    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-6
+end
+
+@testset "LoopTNR - Ising Model - Krylov Solver" begin
+    @info "LoopTNR ising free energy"
+    scheme = LoopTNR(T)
+
+    loop_condition = LoopParameters(
+        sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
+        truncentanglement = trunctol(atol = 1.0e-12),
+        krylov = true
+    )
+
+    data = run!(
+        scheme, truncrank(8), maxiter(25), loop_condition
+    )
+
+    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-6
+end
+
+@testset "LoopTNR - Ising Model - Krylov Solver- NNR" begin
+    @info "LoopTNR ising free energy"
+    scheme = LoopTNR(T)
+
+    loop_condition = LoopParameters(
+        sweeping = maxiter(5) & convcrit(1.0e-9, (steps, cost) -> abs(cost[end])),
+        truncentanglement = trunctol(atol = 1.0e-12),
+        krylov = true,
+        nuclear_norm = true
+    )
+
+    data = run!(
+        scheme, truncrank(8), maxiter(25), loop_condition
+    )
+
+    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-6
+end
+
+
+@testset "LoopTNR - Initialization with 2 x 2 unit cell" begin
+    loop_condition = LoopParameters(
+        sweeping = maxiter(5) & convcrit(1.0e-12, (steps, cost) -> abs(cost[end]))
+    )
+    trunc = truncrank(8)
+    truncentanglement = trunctol(atol = 1.0e-12)
+    entanglement_criterion = maxiter(100)
+    scheme = LoopTNR(fill(T, (2, 2)); trunc, loop_condition)
+    data = run!(
+        scheme, truncrank(8), maxiter(25), loop_condition
+    )
+    @test free_energy(data, ising_βc; initial_size = 2) ≈ f_onsager rtol = 1.0e-6
+end
+
+# SLoopTNR
+@testset "SLoopTNR - Ising Model" begin
+    @info "SLoopTNR ising free energy"
+    T_inv = classical_ising_inv()
+    scheme = SLoopTNR(T_inv)
+
+    data = run!(scheme, truncrank(4), maxiter(25))
+
+    @test free_energy(data, ising_βc) ≈ f_onsager rtol = 1.0e-5
+end
+
+# ctm
+@testset "CTM - Ising Model" begin
+    @info "CTM ising free energy"
+    scheme = CTM(T)
+
+    lz = run!(scheme, truncrank(32), maxiter(256))
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 1.0e-6
+end
+
+# Sublattice CTM
+@testset "Sublattice_CTM - Ising Model" begin
+    @info "Sublattice_CTM ising free energy"
+    scheme = Sublattice_CTM(T, T)
+
+    lz = run!(scheme, truncrank(32), maxiter(256))
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 1.0e-6
+end
+
+# ctm_TRG
+@testset "ctm_TRG - Ising Model" begin
+    @info "ctm_TRG ising free energy"
+    scheme = ctm_TRG(T, 8)
+    lz = run!(scheme, truncrank(8), maxiter(25))
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 7.0e-6
+end
+
+# ctm_HOTRG
+@testset "ctm_HOTRG - Ising Model" begin
+    @info "ctm_HOTRG ising free energy"
+    scheme = ctm_HOTRG(T, 8)
+    lz = run!(scheme, truncrank(8), maxiter(25))
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 2.0e-5
+end
+
+# c4vCTM
+@testset "c4vCTM - Ising Model" begin
+    @info "c4vCTM ising free energy"
+    scheme = c4vCTM(T)
+    lz = run!(scheme, truncrank(24), trivial_convcrit(1.0e-9); verbosity = 1)
+
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 6.0e-8
+end
+
+# rCTM
+@testset "rCTM - Ising Model" begin
+    @info "rCTM ising free energy"
+    scheme = rCTM(T)
+    lz = run!(scheme, truncrank(24), trivial_convcrit(1.0e-9); verbosity = 1)
+
+    fs = lz * -1 / ising_βc
+
+    @test fs ≈ f_onsager rtol = 6.0e-8
+end
+
+# ATRG_3D
+@testset "ATRG_3D - Ising Model" begin
+    @info "ATRG_3D ising free energy"
+    scheme = ATRG_3D(T_3D)
+    data = run!(scheme, truncrank(12), maxiter(25))
+    fs = free_energy(data, ising_βc_3D; scalefactor = 8.0)
+    @info "Calculated f = $(fs)."
+    @test fs ≈ f_benchmark3D rtol = 5.0e-3
+end
+
+# HOTRG_3D
+@testset "HOTRG_3D - Ising Model" begin
+    @info "HOTRG_3D ising free energy"
+    scheme = HOTRG_3D(T_3D)
+    data = run!(scheme, truncrank(8), maxiter(25))
+    fs = free_energy(data, ising_βc_3D; scalefactor = 8.0)
+    @info "Calculated f = $(fs)."
+    @test fs ≈ f_benchmark3D rtol = 1.0e-3
+end
+
+@testset "HOTRG_3D - Projector for fermions" begin
+    @info "HOTRG_3D projectors for fermions"
+    Vphy = Vect[FermionParity](0 => 2, 1 => 2)
+    Vvir = Vect[FermionParity](0 => 2, 1 => 2)
+    for _ in 1:4 # multiple trials
+        Aspace = (Vphy ⊗ Vphy' ← Vvir ⊗ Vvir ⊗ Vvir' ⊗ Vvir')
+        A1 = randn(ComplexF64, Aspace)
+        A2 = randn(ComplexF64, Aspace)
+        for MM in [TNRKit._get_MMdag_3d(A1, A2), TNRKit._get_MdagM_3d(A1, A2)]
+            @test isposdef(MM)
+        end
+    end
+end
+
+# ImpurityHOTRG
+@testset "ImpurityHOTRG - Ising Model" begin
+
+    T = classical_ising(Trivial)
+    T_imp1 = classical_ising_impurity()
+
+    scheme = ImpurityHOTRG(T, T_imp1, T_imp1, T)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    @test free_energy(getindex.(data, 1), ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 6.0e-7
+end
+
+@testset "Impurity HOTRG - Magnetisation" begin
+    # High temperature limit (<m^2> -> 0)
+    β = 0.2
+
+    T = classical_ising(Trivial, β)
+    T_imp_order1_1 = classical_ising_impurity(β)
+    T_imp_order2 = classical_ising(Trivial, β)
+
+    scheme = ImpurityHOTRG(T, T_imp_order1_1, T_imp_order1_1, T_imp_order2)
+
+    data = run!(scheme, truncrank(8), maxiter(25))
+
+    m2_highT = data[end][4] / data[end][1]
+    @test m2_highT ≈ 0.0 atol = 1.0e-14
+
+    # Low temperature limit (<m^2> -> 1)
+    β = 1.0
+
+    T = classical_ising(Trivial, β)
+    T_imp_order1_1 = classical_ising_impurity(β)
+    T_imp_order2 = classical_ising(Trivial, β)
+
+    scheme = ImpurityHOTRG(T, T_imp_order1_1, T_imp_order1_1, T_imp_order2)
+
+    data = run!(scheme, truncrank(8), maxiter(25))
+
+    m2_lowT = data[end][4] / data[end][1]
+    @test m2_lowT ≈ 1 rtol = 1.0e-2
+end
+
+# ImpurityTRG
+@testset "ImpurityTRG - Ising Model" begin
+    T = classical_ising(Trivial)
+    T_imp = classical_ising_impurity()
+
+    scheme = ImpurityTRG(T, T_imp, T, T, T)
+
+    data = run!(scheme, truncrank(24), maxiter(25))
+
+    @test free_energy(getindex.(data, 1), ising_βc) ≈ f_onsager rtol = 2.0e-6
+end
+
+@testset "ImpurityTRG - Magnetisation" begin
+    # High T
+    β = 0.1
+
+    T = classical_ising(Trivial, β)
+    T_imp = classical_ising_impurity(β)
+
+    scheme = ImpurityTRG(T, T_imp, T, T, T)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    m_expection = data[end][2] / data[end][1]
+    @test m_expection ≈ 0.0 atol = 1.0e-4
+
+    # Low T
+    β = 2
+
+    T = classical_ising(Trivial, β; h = 1.0e-6)
+    T_imp = classical_ising_impurity(β; h = 1.0e-6)
+
+    scheme = ImpurityTRG(T, T_imp, T, T, T)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    m_expection = data[end][2] / data[end][1]
+    @test m_expection ≈ 1.0 rtol = 1.0e-4
+end
+
+# CorrelationHOTRG
+@testset "Correlation HOTRG - Ising Model" begin
+
+    T = classical_ising(Trivial)
+    T_imp = classical_ising_impurity()
+
+    scheme = CorrelationHOTRG(T, T_imp, T_imp, 5)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    @test free_energy(getindex.(data, 1), ising_βc; scalefactor = 4.0, initial_size = 4.0) ≈ f_onsager rtol = 1.0e-4
+end
+
+@testset "Correlation HOTRG - Magnetisation Correlation" begin
+    # High temperature limit
+    β = 0.2
+
+    T = classical_ising(Trivial, β)
+    T_imp = classical_ising_impurity(β)
+
+    scheme = CorrelationHOTRG(T, T_imp, T_imp, 5)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    highT = norm(@tensor scheme.Timp_final[1 2; 2 1]) / norm(@tensor scheme.Tpure[1 2; 2 1])
+    @test highT ≈ 7.396177e-6 rtol = 1.0e-5
+
+    # Critical temperature limit
+    T = classical_ising(Trivial)
+    T_imp = classical_ising_impurity()
+
+    scheme = CorrelationHOTRG(T, T_imp, T_imp, 5)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    Tc = norm(@tensor scheme.Timp_final[1 2; 2 1]) / norm(@tensor scheme.Tpure[1 2; 2 1])
+    @test Tc ≈ 0.2981409 rtol = 1.0e-5
+
+    # Low temperature limit
+    β = 3.0
+
+    T = classical_ising(Trivial, β)
+    T_imp = classical_ising_impurity(β)
+
+    scheme = CorrelationHOTRG(T, T_imp, T_imp, 5)
+
+    data = run!(scheme, truncrank(16), maxiter(25))
+
+    lowT = norm(@tensor scheme.Timp_final[1 2; 2 1]) / norm(@tensor scheme.Tpure[1 2; 2 1])
+    @test lowT ≈ 1 rtol = 1.0e-4
+end
+
+# c6vCTM_triangular
+@testset "c6vCTM_triangular - Ising Model" begin
+    for sym in [Trivial, Z2Irrep]
+        for projectors in [:twothirds :full]
+            for conditioning in [true false]
+                T_flipped = classical_ising_triangular(sym, ising_βc_triangular)
+
+                scheme = c6vCTM_triangular(T_flipped)
+                lz = run!(scheme, truncrank(20), maxiter(100); projectors, conditioning)
+
+                fs = lz * -1 / ising_βc_triangular
+                @test fs ≈ f_onsager_triangular rtol = 1.0e-4
+            end
+        end
+    end
+end
+
+# CTM_triangular
+@testset "CTM_triangular - Ising Model" begin
+    for sym in [Trivial, Z2Irrep]
+        for projectors in [:twothirds :full]
+            for conditioning in [true false]
+                T_flipped = classical_ising_triangular(sym, ising_βc_triangular)
+
+                scheme = CTM_triangular(T_flipped)
+                lz = run!(scheme, truncrank(20), maxiter(100); projectors, conditioning)
+
+                fs = lz * -1 / ising_βc_triangular
+                @test fs ≈ f_onsager_triangular rtol = 1.0e-4
+            end
+        end
+    end
+end
+
+using StableRNGs
+@testset "Honeycomb schemes - Ising Model" begin
+    for sym in [Trivial, Z2Irrep]
+        for alg in [:CTM_honeycomb, :c3vCTM_honeycomb]
+            T_flipped = classical_ising_honeycomb(sym, ising_βc_honeycomb; T = ComplexF64)
+            scheme = eval(alg)(T_flipped)
+            lz = run!(scheme, truncrank(20), convcrit(1.0e-4, (steps, data) -> data) & maxiter(300); verbosity = 1)
+
+            fs = lz * -1 / ising_βc_honeycomb
+            @test fs ≈ f_onsager_honeycomb rtol = 1.0e-2
+        end
+    end
+end
+
+# Test honeycomb CTM by converting it to CTM on a square lattice
+@testset "Honeycomb CTM C3 - Random Model" begin
+    rng = StableRNG(1234)
+    for sym in [Trivial, Z2Irrep]
+        for alg in [:CTM_honeycomb, :c3vCTM_honeycomb]
+            A = zeros(ComplexF64, ℂ^2 ⊗ ℂ^2, ℂ^2)
+            A.data .= rand(rng, length(A.data))
+            A /= norm(A)
+
+            if alg == :c3vCTM_honeycomb
+                scheme = eval(alg)(A; symmetrize = true)
+            else
+                scheme = eval(alg)(A)
+            end
+            lz_honeycomb = run!(scheme, truncrank(20), convcrit(1.0e-4, (steps, data) -> data) & maxiter(300); verbosity = 1)
+
+            @tensor pf_square[-4 -3; -1 -2] := A[-1 -2 1] * flip(A, [1 2 3])[-3 -4 1]
+            scheme_square = CTM(pf_square)
+            lz_square = run!(scheme, truncrank(20), convcrit(1.0e-4, (steps, data) -> data) & maxiter(300); verbosity = 1)
+
+            @test lz_square ≈ lz_honeycomb rtol = 1.0e-3
+        end
+    end
+end
+
+# Test CTM_honeycomb for A ≠ B by converting it to CTM on a square lattice
+@testset "Honeycomb CTM - Random Model" begin
+    rng = StableRNG(1234)
+    for sym in [Trivial, Z2Irrep]
+        A = zeros(ComplexF64, ℂ^2 ⊗ ℂ^3, ℂ^4)
+        B = zeros(ComplexF64, ℂ^2 ⊗ ℂ^3, ℂ^4)
+        A.data .= rand(rng, length(A.data))
+        B.data .= rand(rng, length(B.data))
+        A /= norm(A)
+        B /= norm(B)
+
+        @test_throws ArgumentError c3vCTM_honeycomb(A)
+        scheme = CTM_honeycomb(A; B)
+        lz_honeycomb = run!(scheme, truncrank(40), convcrit(-Inf, (steps, data) -> data) & maxiter(500); verbosity = 1)
+
+        @tensor pf_square[-4 -3; -1 -2] := A[-1 -2 1] * flip(B, [1 2 3])[-3 -4 1]
+        scheme_square = CTM(pf_square)
+        lz_square = run!(scheme, truncrank(40), convcrit(1.0e-14, (steps, data) -> data) & maxiter(500); verbosity = 1)
+
+        @test lz_square ≈ lz_honeycomb rtol = 1.0e-2
+    end
+end
+
+@testset "Rotations for honeycomb lattice" begin
+    rng = StableRNG(1234)
+    A_flipped = zeros(ComplexF64, ℂ^2 ⊗ ℂ^2, ℂ^2)
+    A = permute(flip(A_flipped, [1 2]; inv = true), ((), (3, 2, 1)))
+    A.data .= rand(rng, length(A.data))
+
+    @test TNRKit.rotl120_pf_honeycomb(A, 3) ≈ A
+    @test TNRKit.rotl120_pf_honeycomb(A, 1) ≈ TNRKit.rotl120_pf_honeycomb(A)
+    @test TNRKit.is_C3_symmetric(TNRKit.symmetrize_C3_honeycomb(A))
+end
+
+#Thermal TNR physics test
+
+function _thermal_zn2_gu_wen_x1(β, Lz; χttnr = 12, χbtrg = 16, btrg_steps = 14)
+    scheme = ThermalTNR(ZN_gauge_theory_dual(2, β))
+    run!(scheme, truncrank(χttnr), maxiter(Lz - 1); verbosity = 0)
+
+    @tensor effective_tensor[-1 -2 -3 -4] := scheme.T[1, 1][p p; -1 -2 -3 -4]
+    btrg = BTRG(permute(effective_tensor, ((1, 2), (3, 4))))
+    ratios = run!(
+        btrg, truncrank(χbtrg), maxiter(btrg_steps), guwenratio_Finalizer;
+        finalize_beginning = false, verbosity = 0,
+    )
+
+    x1, _ = last(ratios)
+    return x1
+end
+
+@testset "ThermalTNR Z₂ gauge dual Gu-Wen ratio" begin
+    # Table 2 of arXiv:2602.13124 gives the dual-spin estimates of βc(Lz).
+    # The dual representation reverses the phases: β < βc has X₁ ≈ 2, β > βc has X₁ ≈ 1.
+    for (Lz, βc) in ((2, 0.65605), (4, 0.731065))
+        x1_below = _thermal_zn2_gu_wen_x1(βc - 0.1, Lz)
+        x1_above = _thermal_zn2_gu_wen_x1(βc + 0.1, Lz)
+
+        @test x1_below ≈ 2 rtol = 1.0e-2
+        @test x1_above ≈ 1 rtol = 5.0e-2
+    end
+end

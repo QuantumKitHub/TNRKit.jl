@@ -7,7 +7,7 @@ and computes the free energy.
 !!! info
     The `scalefactor` should be set to the rescaling factor of the area of the tensor network after each iteration of the TNR algorithm.
 
-    The `initial_size` should be set to the intial size of the physical lattice, which is typically `1.0` (or `2.0` for the 2D non-symmetric classical Ising model).
+    The `initial_size` should be set to the intial size of the physical lattice, which is typically `1.0`.
 
 """
 function free_energy(data, β; scalefactor = 2.0, initial_size = 1.0)

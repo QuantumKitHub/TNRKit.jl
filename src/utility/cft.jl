@@ -1,270 +1,267 @@
-function next_τ(τ)
-    return (τ - 1) / (τ + 1)
+"""
+    struct CFTData{E, K, A <: AbstractVector{E}}
+
+A struct to hold conformal data extracted from a TNR scheme.
+
+# Constructors
+    CFTData(scheme::TNRScheme; kwargs...)
+    CFTData(TA::TensorMap{E, S, 2, 2}; kwargs...)
+    CFTData(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; kwargs...)
+
+# Fields
+    - `central_charge::E`: The central charge of the CFT.
+    - `modular_parameter::E`: The elementary modular parameter of a single tensor.
+    - `scaling_dimensions::StructuredVector{E, K, A}`: The scaling dimensions of the CFT, organized in a `StructuredVector` where the sectors correspond to different spin sectors (or other quantum numbers) and the data contains the scaling dimensions within those sectors
+
+"""
+struct CFTData{E, K, A <: AbstractVector{E}}
+    "Central charge of the CFT."
+    central_charge::E
+    "Elementary modular parameter for one tensor"
+    modular_parameter::E
+    "Scaling dimensions of the CFT."
+    scaling_dimensions::StructuredVector{E, K, A}
 end
 
-function cft_data(scheme::TNRScheme; v = 1, unitcell = 1, is_real = true)
-    # make the indices
-    indices = [[i, -i, -(i + unitcell), i + 1] for i in 1:unitcell]
-    indices[end][4] = 1
-
-    T = ncon(fill(scheme.T, unitcell), indices)
-
-    outinds = Tuple(collect(1:unitcell))
-    ininds = Tuple(collect((unitcell + 1):(2unitcell)))
-
-    T = permute(T, (outinds, ininds))
-    D, _ = eig(T)
-
-    data = zeros(ComplexF64, dim(space(D, 1)))
-
-    i = 1
-    for (_, b) in blocks(D)
-        for I in LinearAlgebra.diagind(b)
-            data[i] = b[I]
-            i += 1
-        end
-    end
-
-    data = sort(data; by = x -> abs(x), rev = true) # sorting by magnitude
-    data = filter(x -> real(x) > 0, data) # filtering out negative real values
-    data = filter(x -> abs(x) > 1.0e-12, data) # filtering out small values
-
-    if is_real
-        data = real(data)
-    end
-
-    return unitcell * (1 / (2π * v)) * log.(data[1] ./ data)
+function Base.show(io::IO, data::CFTData)
+    println(io, "CFTData")
+    println(io, "  * central charge: $(data.central_charge)")
+    println(io, "  * scaling dimensions: $(data.scaling_dimensions)")
+    return nothing
 end
 
-function cft_data(scheme::BTRG; v = 1, unitcell = 1, is_real = true)
-    # make the indices
-    indices = [[i, -i, -(i + unitcell), i + 1] for i in 1:unitcell]
-    indices[end][4] = 1
-
+CFTData(scheme::TNRScheme; kwargs...) = CFTData(scheme.T; kwargs...) # simple 1-site unitcell schemes
+CFTData(scheme::LoopTNR; kwargs...) = CFTData(scheme.TA, scheme.TB; kwargs...) # 2-site unitcell schemes
+function CFTData(scheme::BTRG; kwargs...) # merge bond tensors into central tensor
     @tensor T_unit[-1 -2; -3 -4] := scheme.T[1 2; -3 -4] * scheme.S1[-2; 2] *
         scheme.S2[-1; 1]
-    T = ncon(fill(T_unit, unitcell), indices)
-
-    outinds = Tuple(collect(1:unitcell))
-    ininds = Tuple(collect((unitcell + 1):(2unitcell)))
-
-    T = permute(T, (outinds, ininds))
-    D, _ = eig(T)
-
-    data = zeros(ComplexF64, dim(space(D, 1)))
-
-    i = 1
-    for (_, b) in blocks(D)
-        for I in LinearAlgebra.diagind(b)
-            data[i] = b[I]
-            i += 1
-        end
-    end
-
-    data = sort(data; by = x -> abs(x), rev = true) # sorting by magnitude
-    data = filter(x -> real(x) > 0, data) # filtering out negative real values
-    data = filter(x -> abs(x) > 1.0e-12, data) # filtering out small values
-
-    if is_real
-        data = real(data)
-    end
-
-    return unitcell * (1 / (2π * v)) * log.(data[1] ./ data)
+    return CFTData(T_unit; kwargs...)
 end
 
-# Function to obtain the "canonical" normalization constant
-function area_term(A, B; is_real = true)
-    a_in = domain(A)[1]
-    b_in = domain(B)[1]
-    x0 = rand(a_in ⊗ b_in)
-
-    function f0(x)
-        @planar fx[-1 -2] := A[c -1; 1 m] * x[1 2] * B[m -2; 2 c]
-        @planar ffx[-1 -2] := B[c -1; 1 m] * fx[1 2] * A[m -2; 2 c]
-        return ffx
-    end
-
-    spec0, _, _ = eigsolve(f0, x0, 1, :LR; verbosity = 0)
-
-    if is_real
-        return real(spec0[1])
+# one-site unitcell
+function CFTData(
+        T::TensorMap{E, S, 2, 2}; shape = [sqrt(2), 2 * sqrt(2), 0], fast_tau_alg::Bool = true, kwargs...
+    ) where {E, S}
+    if shape == [1, 1, 0] # trivial implementation
+        τ0, c = extract_tau_and_c(T; fast = fast_tau_alg)
+        Δs = _scaling_dimensions(T, τ0)
+        return CFTData(complex(c), τ0, Δs)
     else
-        return spec0[1]
+        CFTData(T, T; shape, fast_tau_alg, kwargs...)
     end
 end
 
-function MPO_opt(
-        TA::TensorMap, TB::TensorMap, trunc::TensorKit.TruncationScheme,
-        truncentanglement::TensorKit.TruncationScheme
-    )
-    pretrunc = truncdim(2 * trunc.dim)
-    dl, ur = SVD12(TA, pretrunc)
-    dr, ul = SVD12(transpose(TB, ((2, 4), (1, 3))), pretrunc)
-
-    transfer_MPO = [
-        transpose(dl, ((1,), (3, 2))), ur, transpose(ul, ((2,), (3, 1))),
-        transpose(dr, ((3,), (2, 1))),
-    ]
-
-    in_inds = [1, 1, 1, 1]
-    out_inds = [1, 2, 2, 1]
-    MPO_function(steps, data) = abs(data[end])
-    criterion = maxiter(10) & convcrit(1.0e-12, MPO_function)
-    PR_list, PL_list = find_projectors(
-        transfer_MPO, in_inds, out_inds, criterion,
-        trunc & truncentanglement
-    )
-
-    MPO_disentangled!(transfer_MPO, in_inds, out_inds, PR_list, PL_list)
-    return transfer_MPO
+# Main implementation, two-site unitcell
+function CFTData(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2};
+        shape = [sqrt(2), 2 * sqrt(2), 0], fast_tau_alg::Bool = true,
+        trunc = truncrank(16), truncentanglement = trunctol(; rtol = 1.0e-14)
+    ) where {E, S}
+    norm_const = area_term(TA, TB)^(1 / 4) # canonical normalisation constant
+    TA′, TB′ = TA / norm_const, TB / norm_const
+    τ0, = extract_tau_and_c(TA′, TB′; fast = fast_tau_alg)
+    if shape[1] ≈ 1 && shape[2] != 0 && shape[3] == 0
+        throw(ArgumentError("The shape [1, L, 0] is not compatible with a two-site unit cell."))
+    else
+        return spec(TA′, TB′, shape, τ0; trunc, truncentanglement)
+    end
 end
 
-function reduced_MPO(
-        dl::TensorMap, ur::TensorMap, ul::TensorMap, dr::TensorMap,
-        trunc::TensorKit.TruncationScheme
-    )
-    @planar temp[-1 -2; -3 -4] := ur[-1; 1 4] *
-        ul[4; 3 -2] *
-        dr[-3; 2 1] * dl[2; -4 3]
-    D, U = SVD12(temp, trunc)
-    @planar translate[-1 -2; -3 -4] := U[-2; 1 -4] * D[-1 1; -3]
-    return translate
+"""
+Construct the transfer matrix along vertical direction
+with `unitcell` copies of `T` concatenated horizontally.
+`τ0` is the modular parameter of a single `T`.
+"""
+function _scaling_dimensions(T::TensorMap{E, S, 2, 2}, τ0::Number; unitcell = 1) where {E, S}
+    sv = _rowtm_eigvals(T, unitcell)
+    sv = filter(x -> real(x) > 0 && abs(x) > 1.0e-12, sv)
+    isempty(sv) && throw(ArgumentError("No valid eigenvalues found in transfer matrix spectrum."))
+
+    λ0 = argmax(abs, sv.data)
+    Imτ = imag(τ0) / unitcell
+    Δs = 1 / (2π * Imτ) .* log.(λ0 ./ sv)
+    return sort(Δs; by = real)
 end
 
-function MPO_action_1x4(TA::TensorMap, TB::TensorMap, x::TensorMap)
-    @tensor TTTTx[-1 -2 -3 -4; -5] := x[1 2 3 4; -5] * TA[41 -1; 1 12] *
-        TB[12 -2; 2 23] *
-        TA[23 -3; 3 34] * TB[34 -4; 4 41]
-    return TTTTx
-end
-
-function MPO_action_1x4_twist(TA::TensorMap, TB::TensorMap, x::TensorMap)
-    TTTTx = MPO_action_1x4(TA, TB, x)
-    return permute(TTTTx, ((2, 3, 4, 1), (5,)))
-end
-
-# Fig.25 of https://arxiv.org/pdf/2311.18785. Firstly appear in Chenfeng Bao's thesis, see http://hdl.handle.net/10012/14674.
-function MPO_action_2gates(TA::TensorMap, TB::TensorMap, x::TensorMap)
-    @tensor fx[-1 -2 -3 -4; 5] := TB[-1 -2; 1 2] * x[1 2 3 4; 5] * TB[-3 -4; 3 4]
-    @tensor ffx[-1 -2 -3 -4; 5] := TA[-3 -4; 2 3] * fx[1 2 3 4; 5] *
-        TA[-1 -2; 4 1]
-    return permute(ffx, ((2, 3, 4, 1), (5,)))
-end
-
-function spec(TA::TensorMap, TB::TensorMap, shape::Array; Nh = 25)
-    area = shape[1] * shape[2]
-    Reτ = shape[1] / shape[2]
-    relative_shift = shape[3] / shape[1]
-
+"""
+The "canonical" normalization constant for loop-TNR tensors,
+which is the eigenvalue with largest norm of the 2 x 2 transfer matrix.
+"""
+function area_term(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; is_real = true
+    ) where {E, S}
     I = sectortype(TA)
-    𝔽 = field(TA)
-    if BraidingStyle(I) != Bosonic()
-        throw(ArgumentError("Sectors with non-Bosonic charge $I has not been implemented"))
-    end
-
-    spec_sector = Dict()
-    conformal_data = Dict()
-
-    for charge in values(I)
-        if I == Trivial
-            V = 𝔽^1
-        else
-            V = Vect[I](charge => 1)
-        end
-
-        if shape ≈ [1, 4, 1]
-            x = rand(domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1] ← V)
-            f = MPO_action_1x4_twist
-        elseif shape ≈ [1, 8, 1]
-            x = rand(domain(TA)[1] ⊗ domain(TB)[1] ⊗ domain(TA)[1] ⊗ domain(TB)[1] ← V)
-            f = MPO_action_1x4
-        elseif shape ≈ [sqrt(2), 2 * sqrt(2), 0] ||
-                shape ≈ [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]
-            x = rand(domain(TB) ⊗ domain(TB) ← V)
-            f = MPO_action_2gates
-        end
-
-        if dim(x) == 0
-            spec_sector[charge] = [0.0]
-        else
-            spec, _, _ = eigsolve(
-                a -> f(TA, TB, a), x, Nh, :LM; krylovdim = 40, maxiter = 100,
-                tol = 1.0e-12,
-                verbosity = 0
-            )
-
-            spec_sector[charge] = filter(x -> abs(real(x)) ≥ 1.0e-12, spec)
-        end
-    end
-
-    norm_const_0 = spec_sector[one(I)][1]
-    conformal_data["c"] = 6 / pi / (Reτ - area / 4) * log(norm_const_0)
-
-    for charge in values(I)
-        DeltaS = -1 / (2 * pi * shape[1] / shape[2]) *
-            log.(spec_sector[charge] / norm_const_0)
-        if !(relative_shift ≈ 0)
-            conformal_data[charge] = real.(DeltaS) + imag.(DeltaS) / relative_shift * im
-        else
-            conformal_data[charge] = DeltaS
-        end
-    end
-    return conformal_data
+    pbc = (BraidingStyle(I) == Fermionic()) ? false : true
+    λ = first(leading_eigenvalue(CFTTransferMatrix(TA, TB, [2, 2, 0]), one(I); pbc, Nh = 1))
+    return is_real ? real(λ) : λ
 end
 
-# The function to obtain central charge and conformal spectrum from the fixed-point tensor with G-symmetry. Here the conformal spectrum is obtained by different charge sectors.
 # The case with spin is based on https://arxiv.org/pdf/1512.03846 and some private communications with Yingjie Wei and Atsushi Ueda
-function cft_data!(
-        scheme::LoopTNR, shape::Array,
-        trunc::TensorKit.TruncationScheme,
-        truncentanglement::TensorKit.TruncationScheme
+"""
+Internal function to construct transfer matrices and extract conformal data.
+
+# Arguments
+- `TA, TB`: Rank-4 network tensors (may be identical for 1-site unit cells).
+- `shape`:  A triplet `[h, L, x]` — height, circumference, and horizontal shift
+  of the tube geometry, in units of the original tensor patch.
+- `τ0`:     Elementary modular parameter of one tensor.
+- `Nh`:     Number of eigenvalues to solve for per sector (default 25).
+"""
+function spec(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}, shape::Vector{<:Number},
+        τ0::Number; Nh = 25, trunc = notrunc(), truncentanglement = notrunc()
+    ) where {E, S}
+    I = sectortype(TA)
+    tm = CFTTransferMatrix(TA, TB, shape; trunc, truncentanglement)
+    τ = modular_parameter(tm, τ0)
+
+    # eigenvalues of the transfer matrix from all charge sectors
+    eigs = leading_eigenvalue(tm; Nh)
+
+    # central charge
+    λ0 = if BraidingStyle(I) == Fermionic()
+        eigs[(:NS, one(I))][1]
+    else
+        eigs[one(I)][1]
+    end
+    area = shape[1] * shape[2]
+    central_charge = 6 / pi / (imag(τ) - imag(τ0) * area / 4) * log(λ0)
+
+    # scaling dimension and conformal spin
+    # DeltaS = Δ - i s Re(τ) / Im(τ)
+    Reτ, Imτ = real(τ), imag(τ)
+    relative_shift = Reτ / Imτ
+    DeltaS = -1 / (2 * pi * Imτ) * log.(eigs / λ0)
+    if !isapprox(relative_shift, 0; atol = 1.0e-6)
+        sv = real.(DeltaS) + imag.(DeltaS) / relative_shift * im
+    else
+        # not enough precision to resolve conformal spin
+        sv = complex.(real.(DeltaS))
+    end
+    sv = sort(sv; by = real)
+    sv = filter(x -> real(x) ≤ 1.0e16, sv)
+    return CFTData(central_charge, τ0, sv)
+end
+
+# Modular parameter and central charge
+# ====================================
+
+# Utility functions
+sigmoid(x) = 1 / (1 + exp(-x))
+logit(p) = log(p / (1 - p))
+function _find_λ0(TA, TB, shape)
+    I = sectortype(TA)
+    charge = one(I)
+    pbc = (BraidingStyle(I) == Fermionic()) ? false : true
+    λs = leading_eigenvalue(CFTTransferMatrix(TA, TB, shape), charge; pbc, Nh = 1)
+    return real(first(λs))
+end
+
+"""
+    extract_tau_and_c(T::TensorMap{E, S, 2, 2}; fast::Bool = true) where {E, S}
+    extract_tau_and_c(TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; fast::Bool = true) where {E, S}
+
+Compute the modular parameter τ of one tensor and the central charge c.
+When `fast = true`, 1x2 transfer matrices are used, which runs faster but
+produced slightly less accurate result. Otherwise, 2x2 transfer matrices are used.
+"""
+function extract_tau_and_c(T::TensorMap{E, S, 2, 2}; kwargs...) where {E, S}
+    return extract_tau_and_c(T, T; kwargs...)
+end
+function extract_tau_and_c(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}; fast::Bool = true
+    ) where {E, S}
+    return fast ? _extract_tau_and_c_1x2(TA, TB) : _extract_tau_and_c_2x2(TA, TB)
+end
+
+function _extract_tau_and_c_1x2(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
+    shape1, p1 = [1, 2, 1], ((3, 1), (4, 2))
+    shape2, p2 = [sqrt(2), sqrt(2), 0], ((4, 2), (3, 1))
+    # N → S (1x2): τ1 = (1 + τ) / 2
+    λv = _find_λ0(TA, TB, shape1)
+    # E → W (1x2): τ2 = (τ - 1) / (2 τ)
+    λh = _find_λ0(permute(TB, p1), permute(TA, p1), shape1)
+    # NE → SW (2x1): τ3 = (1 + τ) / (1 - τ)
+    λa = _find_λ0(TA, TB, shape2)
+    # NW → SE (2x1): τ4 = (τ - 1) / (τ + 1)
+    λb = _find_λ0(permute(TB, p2), permute(TA, p2), shape2)
+    # edge case: c = 0
+    if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
+        return complex(0.0, 1.0), 0.0
+    end
+    # when c ≠ 0
+    a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
+    # c here is actually π c / 6
+    c, v, θ = solve_cvtheta(a1, a2, a3; fast = true)
+    return v * cis(θ), 6 * c / pi
+end
+
+function _extract_tau_and_c_2x2(
+        TA::TensorMap{E, S, 2, 2}, TB::TensorMap{E, S, 2, 2}
+    ) where {E, S}
+    shape1, p1 = [2, 2, 0], ((3, 1), (4, 2))
+    # N → S: τ1 = τ
+    λv = _find_λ0(TA, TB, shape1)
+    # E → W: τ2 = -1 / τ
+    λh = _find_λ0(permute(TB, p1), permute(TA, p1), shape1)
+
+    shape2, p2 = [sqrt(2) / 2, sqrt(2), sqrt(2) / 2], ((2, 4), (1, 3))
+    # NE → SW: τ3 = 1 / (1 - τ)
+    λa = _find_λ0(TA, TB, shape2)
+    # NW → SE: τ4 = τ / (1 + τ)
+    λb = _find_λ0(permute(TB, p2), permute(TA, p2), shape2)
+
+    # edge case: c = 0
+    if all(isapprox.(λv, (λh, λa, λb); rtol = 1.0e-6))
+        return complex(0.0, 1.0), 0.0
+    end
+    # when c ≠ 0
+    a1, a2, a3 = log(λh / λv), log(λa / λv), log(λb / λv)
+    # c here is actually π c / 6
+    c, v, θ = solve_cvtheta(a1, a2, a3; fast = false)
+    return v * cis(θ), 6 * c / pi
+end
+
+"""
+    solve_cvtheta(a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2, fast::Bool = true)
+
+Solve for positive (c, v) and θ ∈ (0, π).
+"""
+function solve_cvtheta(
+        a1, a2, a3; c0 = 0.5, v0 = 1.0, θ0 = π / 2, fast::Bool = true
     )
-    if !(shape in [[1, 8, 1], [4 / sqrt(10), 2 * sqrt(10), 2 / sqrt(10)]])
-        throw(ArgumentError("The shape $shape is not correct."))
+    function f!(du, u, p)
+        xc, xv, xθ = u
+        # Work in unconstrained coords to keep variables in their natural domain
+        c = exp(xc)         # make c > 0
+        v = exp(xv)         # make v > 0
+        θ = π * sigmoid(xθ) # make θ ∈ (0, π)
+
+        sinθ, cosθ = sin(θ), cos(θ)
+        vm, vp = 1 + v^2 - 2v * cosθ, 1 + v^2 + 2v * cosθ
+        if fast
+            csinθ = c * sinθ / 2
+            du[1] = (1 / v - v) * csinθ - a1
+            du[2] = (4 / vm - 1) * v * csinθ - a2
+            du[3] = (4 / vp - 1) * v * csinθ - a3
+        else
+            csinθ = c * sinθ
+            du[1] = (1 / v - v) * csinθ - a1
+            du[2] = (1 / vm - 1) * v * csinθ - a2
+            du[3] = (1 / vp - 1) * v * csinθ - a3
+        end
+        return nothing
     end
 
-    norm_const = area_term(scheme.TA, scheme.TB)
-    scheme.TA = scheme.TA / norm_const^(1 / 4)
-    scheme.TB = scheme.TB / norm_const^(1 / 4)
-    @infov 2 "CFT data calculating"
-
-    dl, ur, ul, dr = MPO_opt(scheme.TA, scheme.TB, trunc, truncentanglement)
-    T = reduced_MPO(dl, ur, ul, dr, trunc)
-
-    # Calculate conformal data with spin from -4 to 4. Most error is introduced in the second step of the SVD.
-    conformal_data = spec(T, T, shape)
-    return conformal_data
-end
-
-function cft_data!(scheme::LoopTNR, shape::Array)
-    if !(shape in [[1, 4, 1], [sqrt(2), 2 * sqrt(2), 0]])
-        throw(ArgumentError("The shape $shape is not correct."))
+    # Initial guess in unconstrained space
+    u0 = [log(c0), log(v0), logit(θ0 / π)]
+    prob = NonlinearProblem(f!, u0)
+    sol = solve(prob, NewtonRaphson(; autodiff = AutoForwardDiff()))
+    if !SciMLBase.successful_retcode(sol)
+        @warn "Solver did not converge" retcode = sol.retcode resid = sol.resid
     end
-
-    norm_const = area_term(scheme.TA, scheme.TB)
-    scheme.TA = scheme.TA / norm_const^(1 / 4)
-    scheme.TB = scheme.TB / norm_const^(1 / 4)
-    @infov 2 "CFT data calculating"
-    conformal_data = spec(scheme.TA, scheme.TB, shape)
-    return conformal_data
-end
-
-"""
-    central_charge(scheme::TNRScheme, n::Number)
-
-Get the central charge given the current state of a `TNRScheme` and the previous normalization factor `n`
-"""
-function central_charge(scheme::TNRScheme, n::Number)
-    @tensor M[-1; -2] := (scheme.T / n)[1 -1; -2 1]
-    _, S, _ = tsvd(M)
-    return log(S.data[1]) * 6 / (π)
-end
-
-function central_charge(scheme::BTRG, n::Number)
-    @tensor M[-1; -2] := (
-        (scheme.T)[1 -1; 3 2] * scheme.S1[3; -2] *
-            scheme.S2[2; 1]
-    ) / n
-    _, S, _ = tsvd(M)
-    return log(S.data[1]) * 6 / (π)
+    xc, xv, xθ = sol.u
+    return exp(xc), exp(xv), π * sigmoid(xθ)
 end

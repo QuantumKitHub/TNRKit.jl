@@ -1,10 +1,12 @@
-using Test
+using ParallelTestRunner
 using TNRKit
-using TensorKit
-using PEPSKit: InfinitePartitionFunction, CTMRGEnv, SequentialCTMRG, leading_boundary
-using QuadGK
 
-include("spaces.jl") # do they give spacemismatches?
-include("schemes.jl") # do they give the correct results (with the expected accuracy)?
-include("models.jl") # do they give the correct results (with the expected accuracy)?
-include("fermions.jl") # do they give the correct results (with the expected accuracy)?
+# --fast to indicate a smaller set of tests
+args = parse_args(ARGS; custom = ["fast"])
+fast = !isnothing(args.custom["fast"])
+
+const init_code = quote
+    const fast_tests = $fast
+end
+
+ParallelTestRunner.runtests(TNRKit, args; init_code)

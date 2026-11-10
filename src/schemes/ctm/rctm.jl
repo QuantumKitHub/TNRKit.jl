@@ -1,33 +1,47 @@
-#=
-CTM with spatial reflection symmetry along x and y axis. This allows the different edge tensors for the vertical and horizontal edges.
-The corner tensors are related by its mirror images.
+#     ┌──┐    ┌────┐
+#     │  │    │    │
+# ───►│E1│───►│ C2 │
+#     └──┘    └──┬─┘
+#       ▲        │
+#       │        ▼
+#              ┌──┐
+#              │  │
+#           ──►│E2│
+#              └─┬┘
+#                │
+#                ▼
 
-    ┌──┐    ┌────┐
-    │  │    │    │
-───►│E1│───►│ C2 │
-    └──┘    └──┬─┘
-      ▲        │  
-      │        ▼  
-             ┌──┐ 
-             │  │ 
-          ──►│E2│ 
-             └─┬┘ 
-               │  
-               ▼  
-=#
-mutable struct rCTM{A, S}
-    T::TensorMap{A, S, 2, 2}
-    C2::TensorMap{A, S, 1, 1}
-    E1::TensorMap{A, S, 2, 1}
-    E2::TensorMap{A, S, 2, 1}
+"""
+$(TYPEDEF)
 
-    function rCTM(T::TensorMap{A, S, 2, 2}) where {A, S}
-        if typeof(T.data[1]) != Float64
+Reflection-symmetric Corner Transfer Matrix
+
+# Constructors
+    $(FUNCTIONNAME)(T)
+
+CTM with spatial reflection symmetry along x and y axis. This allows different edge tensors for the vertical and horizontal edges.
+The corner tensors are related by their mirror images.
+
+# Running the algorithm
+    run!(::rCTM, trunc::TruncationStrategy, criterion::TNRKit.stopcrit[, verbosity=1])
+
+# Fields
+
+$(TYPEDFIELDS)
+"""
+mutable struct rCTM{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, TC <: AbstractTensorMap{E, S, 1, 1}, TE <: AbstractTensorMap{E, S, 2, 1}} <: TNRScheme{E, S}
+    T::TT
+    C2::TC
+    E1::TE
+    E2::TE
+
+    function rCTM(T::TT) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
+        if !(E <: Real)
             @error "This scheme only support tensors with real numbers"
         end
         C, E1, E2 = rCTM_init(T)
         @assert BraidingStyle(sectortype(T)) == Bosonic() "$(summary(BraidingStyle(sectortype(T)))) braiding style is not supported for rCTM"
-        return new{A, S}(T, C, E1, E2)
+        return new{E, S, TT, typeof(C), typeof(E1)}(T, C, E1, E2)
     end
 end
 
@@ -35,9 +49,9 @@ function rCTM_init(T)
     elt = typeof(T.data[1])
     Vp1 = space(T)[3]'
     Vp2 = space(T)[4]'
-    C = TensorMap(ones, elt, oneunit(Vp1) ← oneunit(Vp2))
-    E1 = TensorMap(ones, elt, oneunit(Vp1) ⊗ Vp1 ← oneunit(Vp1))
-    E2 = TensorMap(ones, elt, oneunit(Vp2) ⊗ Vp2 ← oneunit(Vp2))
+    C = ones(elt, oneunit(Vp1) ← oneunit(Vp2))
+    E1 = ones(elt, oneunit(Vp1) ⊗ Vp1 ← oneunit(Vp1))
+    E2 = ones(elt, oneunit(Vp2) ⊗ Vp2 ← oneunit(Vp2))
     return C, E1, E2
 end
 
@@ -49,7 +63,7 @@ end
 
 function find_UVt(scheme, trunc)
     mat = rt_build_corner_matrix(scheme)
-    U, S, Vt = tsvd(mat; trunc = trunc & truncbelow(1.0e-20))
+    U, S, Vt = svd_trunc(mat; trunc = trunc & trunctol(atol = 1.0e-20))
     return mat, U, S, Vt
 end
 
@@ -62,9 +76,9 @@ function step!(scheme::rCTM, trunc)
     @tensor opt = true scheme.E2[-1 -2; -3] := scheme.E2[1 5; 3] * scheme.T[-2 4; 2 5] *
         conj(Vt[-3; 3 4]) * Vt[-1; 1 2]
 
-    scheme.C2 /= norm(scheme.C2)
-    scheme.E1 /= norm(scheme.E1)
-    scheme.E2 /= norm(scheme.E2)
+    normalize!(scheme.C2)
+    normalize!(scheme.E1)
+    normalize!(scheme.E2)
     # symmetrization of the edges to avoid the breaking of reflection due to the numerical error
     scheme.E1 = (scheme.E1 + flip(permute(scheme.E1, ((3, 2), (1,))), (1, 3)) / 2)
     scheme.E2 = (scheme.E2 + flip(permute(scheme.E1, ((3, 2), (1,))), (1, 3)) / 2)
@@ -72,7 +86,7 @@ function step!(scheme::rCTM, trunc)
 end
 
 function run!(
-        scheme::rCTM, trunc::TensorKit.TruncationScheme,
+        scheme::rCTM, trunc::TruncationStrategy,
         criterion::TNRKit.stopcrit; verbosity = 1
     )
     LoggingExtras.withlevel(; verbosity) do
@@ -103,22 +117,10 @@ function run!(
 end
 
 function lnz(scheme::rCTM)
-    Z, env = tensor2env(scheme.T, scheme.C2, scheme.E1, scheme.E2)
-    return real(log(network_value(Z, env)))
-end
+    corners = [adjoint(scheme.C2), scheme.C2, adjoint(scheme.C2), scheme.C2]
+    edges = [scheme.E1 scheme.E2 flip(scheme.E1, 2) flip(scheme.E2, 2)]
 
-function tensor2env(T, C2, E1, E2)
-    Z = InfinitePartitionFunction(T)
-    env = CTMRGEnv(Z, space(C2)[1])
-    for i in 1:2
-        env.corners[2 * i] = C2
-        env.edges[2 * i] = E2
-        env.corners[2 * i - 1] = adjoint(C2)
-        env.edges[2 * i - 1] = E1
-    end
-    env.edges[3] = flip(env.edges[3], 2)
-    env.edges[4] = flip(env.edges[4], 2)
-    return Z, env
+    return real(log(network_value(scheme.T, corners, edges)))
 end
 
 function Base.show(io::IO, scheme::rCTM)

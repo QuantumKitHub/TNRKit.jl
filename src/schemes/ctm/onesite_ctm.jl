@@ -1,24 +1,44 @@
 """
-            ┌───┐ ┌──┐ ┌───┐
-            │Ctl├─┤Et├─┤Ctr│
-            └─┬─┘ └┬─┘ └─┬─┘
-            ┌─┼─┐ ┌┼─┐ ┌─┼─┐
-            │El ├─┤T ├─┤Er │
-            └─┬─┘ └┬─┘ └─┬─┘
-            ┌─┼─┐ ┌┼─┐ ┌─┼─┐
-            │Cbl├─┤Eb├─┤Cbr│
-            └───┘ └──┘ └───┘
+$(TYPEDEF)
+
+Corner Transfer Matrix Renormalization Group (one-site environment)
+
+# Constructors
+    $(FUNCTIONNAME)(T[, bc=ones, bc_free=false])
+
+# Running the algorithm
+    run!(::CTM, trunc::TruncationStrategy, criterion::maxiter[, conv_criterion=1.0e-8, verbosity=1])
+
+# Fields
+
+$(TYPEDFIELDS)
+
+```
+    ┌───┐ ┌──┐ ┌───┐
+    │Ctl├─┤Et├─┤Ctr│
+    └─┬─┘ └┬─┘ └─┬─┘
+    ┌─┼─┐ ┌┼─┐ ┌─┼─┐
+    │El ├─┤T ├─┤Er │
+    └─┬─┘ └┬─┘ └─┬─┘
+    ┌─┼─┐ ┌┼─┐ ┌─┼─┐
+    │Cbl├─┤Eb├─┤Cbr│
+    └───┘ └──┘ └───┘
+```
+
+# References
+* [Baxter Physica A 106(1) (1981)](@cite baxter1981)
+* [Nishino & Okunishi J. Phys. Soc. Jpn. 65 (1996)](@cite nishino1996)
 """
-mutable struct CTM
-    T::AbstractTensorMap
-    Ctl::AbstractTensorMap
-    Ctr::AbstractTensorMap
-    Cbr::AbstractTensorMap
-    Cbl::AbstractTensorMap
-    El::AbstractTensorMap
-    Eb::AbstractTensorMap
-    Et::AbstractTensorMap
-    Er::AbstractTensorMap
+mutable struct CTM{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, TC <: AbstractTensorMap{E, S, 1, 1}, TE <: AbstractTensorMap{E, S, 2, 1}} <: TNRScheme{E, S}
+    T::TT
+    Ctl::TC
+    Ctr::TC
+    Cbr::TC
+    Cbl::TC
+    El::TE
+    Eb::TE
+    Et::TE
+    Er::TE
 end
 
 CTM(T; bc = ones, bc_free = false) = CTM(T, CTM_init(T; bc, bc_free)...)
@@ -34,7 +54,9 @@ function lnz(ctm::CTM)
         ctm.Eb[6 10; 7] *
         ctm.Cbl[7; 8] *
         ctm.El[8 9; 1]
+
     B = tr(ρA(ctm))
+
     @tensor opt = true C =
         ctm.Ctl[1; 2] *
         ctm.Et[2 7; 3] *
@@ -42,6 +64,7 @@ function lnz(ctm::CTM)
         ctm.Cbr[4; 5] *
         ctm.Eb[5 7; 6] *
         ctm.Cbl[6; 1]
+
     @tensor opt = true D =
         ctm.Ctl[1; 2] *
         ctm.Ctr[2; 3] *
@@ -61,21 +84,21 @@ function CTM_init(T; bc = ones, bc_free = false)
     if bc_free
         V = Vps[1]
     end
-    C = TensorMap(bc, elt, V ← V)
-    El, Eb, Et, Er = [TensorMap(bc, elt, V ⊗ Vps[i] ← V) for i in 1:4]
+    C = bc(elt, V ← V)
+    El, Eb, Et, Er = [bc(elt, V ⊗ Vps[i] ← V) for i in 1:4]
     return C, C, C, C, El, Eb, Et, Er
 end
 
-function normalize!(ctm::CTM)
-    ctm.Ctl /= norm(ctm.Ctl)
-    ctm.Ctr /= norm(ctm.Ctr)
-    ctm.Cbr /= norm(ctm.Cbr)
-    ctm.Cbl /= norm(ctm.Cbl)
-    ctm.Et /= norm(ctm.Et)
-    ctm.Er /= norm(ctm.Er)
-    ctm.Eb /= norm(ctm.Eb)
-    ctm.El /= norm(ctm.El)
-    return nothing
+function LinearAlgebra.normalize!(ctm::CTM)
+    normalize!(ctm.Ctl)
+    normalize!(ctm.Ctr)
+    normalize!(ctm.Cbr)
+    normalize!(ctm.Cbl)
+    normalize!(ctm.Et)
+    normalize!(ctm.Er)
+    normalize!(ctm.Eb)
+    normalize!(ctm.El)
+    return ctm
 end
 
 """
@@ -99,7 +122,7 @@ end
 function rotate_T(T; num = 1)
     Tnew = copy(T)
     for _ in 1:num
-        Tnew = permute(Tnew, (3, 1), (4, 2))
+        Tnew = permute(Tnew, ((3, 1), (4, 2)))
     end
     return Tnew
 end
@@ -111,12 +134,11 @@ end
 
 function corner_spectrum(ctm::CTM)
     rho = ρA(ctm)
-    rho /= abs(tr(rho))
-    _, S, _ = tsvd(rho)
-    return S.data
+    S = LinearAlgebra.svdvals!(rho)
+    return normalize!(S, 1)
 end
 
-function step!(ctm::CTM, trunc::TensorKit.TruncationScheme)
+function step!(ctm::CTM, trunc::TruncationStrategy)
     Ctl_new = block_four_corner(ctm.T, ctm.Ctl, ctm.El, ctm.Et)
     Ctr_new = block_four_corner(rotate_T(ctm.T), ctm.Ctr, ctm.Et, ctm.Er)
     Cbr_new = block_four_corner(rotate_T(ctm.T, num = 2), ctm.Cbr, ctm.Er, ctm.Eb)
@@ -147,7 +169,7 @@ function step!(ctm::CTM, trunc::TensorKit.TruncationScheme)
 end
 
 
-function run!(ctm::CTM, trunc::TensorKit.TruncationScheme, criterion::maxiter; conv_criterion = 1.0e-8, verbosity = 1)
+function run!(ctm::CTM, trunc::TruncationStrategy, criterion::maxiter; conv_criterion = 1.0e-8, verbosity = 1)
     ES = corner_spectrum(ctm)
     crit = true
     steps = 0
@@ -160,7 +182,7 @@ function run!(ctm::CTM, trunc::TensorKit.TruncationScheme, criterion::maxiter; c
                 normdiff = norm(ES - ES_new)
                 @infov 2 "Step $(steps + 1), |ES - ES_new| = $(normdiff)"
                 push!(hist, normdiff)
-                if norm(ES - ES_new) < conv_criterion
+                if normdiff < conv_criterion
                     @infov 1 "CTM converged after $(steps + 1) iterations"
                     break
                 end
@@ -173,7 +195,7 @@ function run!(ctm::CTM, trunc::TensorKit.TruncationScheme, criterion::maxiter; c
             @infov 1 "CTM reached the maximum iteration $(steps)"
         end
     end
-    return hist
+    return lnz(ctm)
 end
 
 function Base.show(io::IO, scheme::CTM)

@@ -1,15 +1,33 @@
-mutable struct ctm_TRG{A, S} <: TNRScheme
-    T::TensorMap{A, S, 2, 2}
-    C2::TensorMap{A, S, 1, 1}
-    E1::TensorMap{A, S, 2, 1}
-    E2::TensorMap{A, S, 2, 1}
+"""
+$(TYPEDEF)
+
+Corner Transfer Matrix environment + Tensor Renormalization Group
+
+# Constructors
+    $(FUNCTIONNAME)(T, χenv[, ctm_iter=2.0e4, ctm_tol=1.0e-9])
+
+# Running the algorithm
+    run!(::ctm_TRG, trunc::TruncationStrategy, criterion::maxiter[, sweep=30, enlarge=true, inv=false, conv_criterion=1.0e-12, modified=true])
+
+# Fields
+
+$(TYPEDFIELDS)
+
+# References
+* [Morita & Kawashima Phys. Rev. B 103(4) (2021)](@cite morita2021)
+"""
+mutable struct ctm_TRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, TC <: AbstractTensorMap{E, S, 1, 1}, TE <: AbstractTensorMap{E, S, 2, 1}} <: TNRScheme{E, S}
+    T::TT
+    C2::TC
+    E1::TE
+    E2::TE
     χenv::Int64
     function ctm_TRG(
-            T::TensorMap{A, S, 2, 2},
+            T::TT,
             χenv::Int64;
             ctm_iter = 2.0e4,
             ctm_tol = 1.0e-9,
-        ) where {A, S}
+        ) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
         if eltype(T) != Float64
             @error "This scheme only support tensors with real numbers"
         end
@@ -17,14 +35,14 @@ mutable struct ctm_TRG{A, S} <: TNRScheme
         @info "Finding the environment using rCTM..."
         TNRKit.run!(
             scheme_init,
-            truncdim(χenv),
+            truncrank(χenv),
             trivial_convcrit(ctm_tol) & maxiter(ctm_iter);
             verbosity = 0,
         )
         @info "rCTM finished"
         C2, E1, E2 = scheme_init.C2, scheme_init.E1, scheme_init.E2
         @assert BraidingStyle(sectortype(T)) == Bosonic() "$(summary(BraidingStyle(sectortype(T)))) braiding style is not supported for rCTM"
-        return new{A, S}(T, C2, E1, E2, χenv)
+        return new{E, S, TT, typeof(C2), typeof(E1)}(T, C2, E1, E2, χenv)
     end
 end
 
@@ -36,12 +54,12 @@ end
 
 function find_UVt(scheme::ctm_TRG, trunc)
     mat = corner_matrix(scheme)
-    U, S, Vt = tsvd(mat; trunc = trunc & truncbelow(1.0e-20))
+    U, S, Vt = svd_trunc(mat; trunc = trunc & trunctol(atol = 1.0e-20))
     return mat, U, S, Vt
 end
 
 function Levin_decomposition(T, trunc)
-    U, S, Vt = tsvd(T, ((1, 3), (2, 4)); trunc = trunc)
+    U, S, Vt = svd_trunc(permute(T, ((1, 3), (2, 4))); trunc = trunc)
 
     S1 = U * sqrt(S)
     S2 = sqrt(S) * Vt
@@ -64,7 +82,7 @@ function insert_PtoS(scheme, trunc; enlarge = true)
     if enlarge
         P1, P2 = find_P1P2(
             env_left_top, env_right_bottom, (3,), (1,),
-            truncdim(trunc.dim * 2)
+            truncrank(trunc.howmany * 2)
         )
     else
         P1, P2 = find_P1P2(env_left_top, env_right_bottom, (3,), (1,), trunc)
@@ -102,7 +120,7 @@ end
 
 function step!(
         scheme::ctm_TRG,
-        trunc::TensorKit.TruncationScheme, ;
+        trunc::TruncationStrategy, ;
         sweep = 30,
         enlarge = true,
         inv = false,
@@ -135,8 +153,8 @@ function step!(
 
     tr_norm = tr_tensor(scheme.T; inv = inv)
     scheme.T /= tr_norm
-    scheme.E1 /= norm(scheme.E1)
-    scheme.E2 /= norm(scheme.E2)
+    normalize!(scheme.E1)
+    normalize!(scheme.E2)
     for _ in 0:sweep
         rctm_step!(scheme)
     end
@@ -145,18 +163,16 @@ end
 
 function run!(
         scheme::ctm_TRG,
-        trunc::TensorKit.TruncationScheme,
+        trunc::TruncationStrategy,
         criterion::maxiter;
         sweep = 30,
         enlarge = true,
-        return_cft = false,
         inv = false,
         conv_criterion = 1.0e-12,
         modified = true,
     )
     area = 1
     lnz = 0.0
-    cft = []
 
     steps = 0
     crit = true
@@ -164,9 +180,6 @@ function run!(
         area *= 4.0
         tr_norm = step!(scheme, trunc; sweep = sweep, enlarge = enlarge, inv = inv, modified)
         lnz += log(tr_norm) / area
-        if return_cft
-            push!(cft, cft_data(scheme; unitcell = 2))
-        end
         if abs(log(abs(tr_norm)) / area) <= conv_criterion
             @info "CTM-TRG converged after $steps iterations"
             break
@@ -174,11 +187,7 @@ function run!(
         steps += 1
         crit = criterion(steps, nothing)
     end
-    if return_cft
-        return lnz, cft
-    else
-        return lnz
-    end
+    return lnz
 end
 
 function Base.show(io::IO, scheme::ctm_TRG)

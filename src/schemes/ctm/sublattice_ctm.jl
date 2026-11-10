@@ -73,7 +73,7 @@ function lnz(ctm::Sublattice_CTM)
         bottom[4; 5] *
         ctm.ElA[5 8; 6] *
         ctm.ElB[6 7; 1]
-    return log(abs(A * B / (C * D)))
+    return log(abs(A * B / (C * D))) / 4
 end
 
 ρA(ctm::Sublattice_CTM) = ctm.Ctl1 * ctm.Ctr1 * ctm.Cbr1 * ctm.Cbl1
@@ -86,39 +86,38 @@ function CTM_init(TA, TB; bc = ones, bc_free = false)
     if bc_free
         V = Vps_A[1]
     end
-    C = TensorMap(bc, elt, V ← V)
-    ElA, EbA, EtA, ErA = [TensorMap(bc, elt, V ⊗ Vps_B[i] ← V) for i in 1:4]
-    ElB, EbB, EtB, ErB = [TensorMap(bc, elt, V ⊗ Vps_A[i] ← V) for i in 1:4]
+    C = bc(elt, V ← V)
+    ElA, EbA, EtA, ErA = [bc(elt, V ⊗ Vps_B[i] ← V) for i in 1:4]
+    ElB, EbB, EtB, ErB = [bc(elt, V ⊗ Vps_A[i] ← V) for i in 1:4]
     return C, C, C, C, C, C, C, C, ElA, ElB, EbA, EbB, ErA, ErB, EtA, EtB
 end
 
-function normalize!(ctm::Sublattice_CTM)
-    ctm.Ctl1 /= norm(ctm.Ctl1)
-    ctm.Ctr1 /= norm(ctm.Ctr1)
-    ctm.Cbr1 /= norm(ctm.Cbr1)
-    ctm.Cbl1 /= norm(ctm.Cbl1)
+function LinearAlgebra.normalize!(ctm::Sublattice_CTM)
+    normalize!(ctm.Ctl1)
+    normalize!(ctm.Ctr1)
+    normalize!(ctm.Cbr1)
+    normalize!(ctm.Cbl1)
 
-    ctm.Ctl2 /= norm(ctm.Ctl2)
-    ctm.Ctr2 /= norm(ctm.Ctr2)
-    ctm.Cbr2 /= norm(ctm.Cbr2)
-    ctm.Cbl2 /= norm(ctm.Cbl2)
+    normalize!(ctm.Ctl2)
+    normalize!(ctm.Ctr2)
+    normalize!(ctm.Cbr2)
+    normalize!(ctm.Cbl2)
 
-    ctm.EtA /= norm(ctm.EtA)
-    ctm.ErA /= norm(ctm.ErA)
-    ctm.EbA /= norm(ctm.EbA)
-    ctm.ElA /= norm(ctm.ElA)
-    ctm.EtB /= norm(ctm.EtB)
-    ctm.ErB /= norm(ctm.ErB)
-    ctm.EbB /= norm(ctm.EbB)
-    ctm.ElB /= norm(ctm.ElB)
-    return nothing
+    normalize!(ctm.EtA)
+    normalize!(ctm.ErA)
+    normalize!(ctm.EbA)
+    normalize!(ctm.ElA)
+    normalize!(ctm.EtB)
+    normalize!(ctm.ErB)
+    normalize!(ctm.EbB)
+    normalize!(ctm.ElB)
+    return ctm
 end
 
 function corner_spectrum(ctm::Sublattice_CTM)
     rho = ρA(ctm)
-    rho /= abs(tr(rho))
-    _, S, _ = tsvd(rho)
-    return S.data
+    S = LinearAlgebra.svdvals!(rho)
+    return normalize!(S, 1)
 end
 
 function contract_C1s(ctm::Sublattice_CTM)
@@ -189,7 +188,7 @@ function update_edges!(ctm::Sublattice_CTM, (Vt_list1, Vt_list2, U_list1, U_list
     return 0
 end
 
-function step!(ctm::Sublattice_CTM, trunc::TensorKit.TruncationScheme)
+function step!(ctm::Sublattice_CTM, trunc::TruncationStrategy)
     C1s = contract_C1s(ctm)
     C2s = contract_C2s(ctm)
 
@@ -207,7 +206,7 @@ end
 
 function run!(
         ctm::Sublattice_CTM,
-        trunc::TensorKit.TruncationScheme,
+        trunc::TruncationStrategy,
         criterion::maxiter;
         conv_criterion = 1.0e-8,
         verbosity = 1,
@@ -224,7 +223,7 @@ function run!(
                 normdiff = norm(ES - ES_new)
                 @infov 2 "Step $(steps + 1), |ES - ES_new| = $(normdiff)"
                 push!(hist, normdiff)
-                if norm(ES - ES_new) < conv_criterion
+                if normdiff < conv_criterion
                     @infov 1 "CTM converged after $(steps + 1) iterations"
                     break
                 end
@@ -237,7 +236,7 @@ function run!(
             @infov 1 "CTM reached the maximum iteration $(steps)"
         end
     end
-    return hist
+    return lnz(ctm)
 end
 
 function Base.show(io::IO, scheme::Sublattice_CTM)

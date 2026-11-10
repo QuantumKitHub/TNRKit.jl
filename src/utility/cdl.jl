@@ -9,7 +9,7 @@ function cdl_tensor(χ::Int; χcdl = 2)
         C[10; 9] * U[1 2 3; -1] * U[4 5 6; -2] *
         conj(U[7 8 9; -3]) * conj(U[10 11 12; -4])
     # random rotation
-    U, _, Vt = tsvd(randn(ℂ^(2 * χcdl + χ) ← ℂ^(2 * χcdl + χ)))
+    U, _, Vt = svd_compact(randn(ℂ^(2 * χcdl + χ) ← ℂ^(2 * χcdl + χ)))
     @tensoropt Anew[-1 -2; -3 -4] := Anew[1 2; 3 4] * U[1; -1] * conj(U[4; -4]) *
         Vt[2; -2] * conj(Vt[3; -3])
     return Anew

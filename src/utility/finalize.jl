@@ -65,32 +65,130 @@ function finalize!(scheme::HOTRG_3D)
     return n
 end
 
+function finalize!(scheme::ThermalTNR)
+    log_norm_sum = 0.0
+    for i in axes(scheme.T, 1), j in axes(scheme.T, 2)
+        T = scheme.T[i, j]
+        n = norm(@tensor T[1 1; 2 3 2 3])
+        scheme.T[i, j] /= n
+        log_norm_sum += log(n)
+    end
+    return exp(log_norm_sum / length(scheme.T))
+end
+
 function finalize!(scheme::SLoopTNR)
     tr_norm = trnorm_2x2(scheme.T)
     scheme.T /= tr_norm^0.25
     return tr_norm^0.25
 end
 
-# cft data finalize
-function finalize_cftdata!(scheme::LoopTNR)
-    finalize!(scheme)
-    return cft_data(scheme; is_real = true)
+# finalize! for ImpurityTRG
+function finalize!(scheme::ImpurityTRG)
+    # First normalize everything by the pure tensor
+    npure = norm(@tensor scheme.T[1 2; 2 1])
+    scheme.T_imp1 /= npure
+    scheme.T_imp2 /= npure
+    scheme.T_imp3 /= npure
+    scheme.T_imp4 /= npure
+    scheme.T /= npure
+
+    # Then calculate the contracted/traced 4 impurity tensors
+    nimp = norm(@tensoropt scheme.T_imp1[5 4; 6 1] * scheme.T_imp2[1 2; 7 5] * scheme.T_imp3[3 7; 2 8] * scheme.T_imp4[8 6; 4 3])
+
+    return npure, nimp
 end
 
-function finalize_cft!(scheme::SLoopTNR)
+# finalize! for ImpurityHOTRG
+function finalize!(scheme::ImpurityHOTRG)
+    n = norm(@tensor scheme.T[1 2; 2 1])
+    n_11 = norm(@tensor scheme.T_imp_order1_1[1 2; 2 1])
+    n_12 = norm(@tensor scheme.T_imp_order1_2[1 2; 2 1])
+    n_2 = norm(@tensor scheme.T_imp_order2[1 2; 2 1])
+    scheme.T /= n
+    scheme.T_imp_order1_1 /= n
+    scheme.T_imp_order1_2 /= n
+    scheme.T_imp_order2 /= n
+    return n, n_11, n_12, n_2
+end
+
+# Finalizers for CorrelationHOTRG
+function finalize_phase1!(scheme::CorrelationHOTRG)
+    n = norm(@tensor scheme.Tpure[1 2; 2 1])
+    n_1 = norm(@tensor scheme.Timp1[1 2; 2 1])
+    n_2 = norm(@tensor scheme.Timp2[1 2; 2 1])
+
+    scheme.Tpure /= n
+    scheme.Timp1 /= n
+    scheme.Timp2 /= n
+
+    return n, n_1, n_2
+end
+
+function finalize_phase23!(scheme::CorrelationHOTRG)
+    n = norm(@tensor scheme.Tpure[1 2; 2 1])
+    n_imp = norm(@tensor scheme.Timp_final[1 2; 2 1])
+
+    scheme.Tpure /= n
+    scheme.Timp_final /= n
+
+    return n, n_imp, n_imp
+end
+
+# cft data finalize
+function finalize_cftdata!(scheme::TNRScheme)
+    finalize!(scheme)
+    return CFTData(scheme)
+end
+
+CFT_Finalizer = Finalizer(finalize_cftdata!, CFTData)
+
+function finalize_cftdata!(scheme::SLoopTNR) # TODO: remove this
     tr_norm = trnorm_2x2(scheme.T)
     scheme.T /= tr_norm^0.25
     Tflip = flip(scheme.T, (1, 2, 3, 4))
     @tensoropt mat[-1 -2; -3 -4] := scheme.T[1 3; -1 2] * Tflip[1 4; -2 2] *
         Tflip[5 3; -3 6] * scheme.T[5 4; -4 6]
-    val, vec = eig(mat)
+    val, vec = eig_full(mat)
     val = sort(real(val).data; rev = true)
     data = -log.(abs.(val ./ val[1])) / 2 / π
     return data
 end
 
-# central charge finalize
-function finalize_central_charge!(scheme::TNRScheme)
-    n = finalize!(scheme)
-    return central_charge(scheme, n)
+# TODO: add Finalizers for CFT and central charge
+two_by_two_Finalizer = Finalizer(finalize_two_by_two!, Float64)
+
+# Finalizer for ground state degeneracy
+function finalize_groundstatedegeneracy!(scheme::TNRScheme)
+    finalize!(scheme)
+    return ground_state_degeneracy(scheme; unitcell = 1)
 end
+
+function finalize_groundstatedegeneracy!(scheme::BTRG)
+    finalize!(scheme)
+    return ground_state_degeneracy(scheme; unitcell = 1)
+end
+
+function finalize_groundstatedegeneracy!(scheme::LoopTNR)
+    finalize!(scheme)
+    return ground_state_degeneracy(scheme; unitcell = 2)
+end
+
+GSDegeneracy_Finalizer = Finalizer(finalize_groundstatedegeneracy!, Float64)
+
+#Finalizer for Gu-Wen ratio
+function finalize_gu_wen_ratio!(scheme::TNRScheme)
+    finalize!(scheme)
+    return gu_wen_ratio(scheme)
+end
+
+function finalize_gu_wen_ratio!(scheme::BTRG)
+    finalize!(scheme)
+    return gu_wen_ratio(scheme)
+end
+
+function finalize_gu_wen_ratio!(scheme::LoopTNR)
+    finalize!(scheme)
+    return gu_wen_ratio(scheme)
+end
+
+const guwenratio_Finalizer = Finalizer(finalize_gu_wen_ratio!, Tuple{Float64, Float64})

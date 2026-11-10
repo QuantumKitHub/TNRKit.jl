@@ -1,17 +1,13 @@
-name: FormatCheck
+name: 'Format'
 
 on:
-  push:
-    branches:
-      - 'main'
-      - 'master'
-    tags: '*'
   pull_request:
-    branches:
-      - 'main'
-      - 'master'
+    paths: ['**/*.jl']
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
 
 jobs:
   formatcheck:
-    name: "Format Check"
     uses: "QuantumKitHub/QuantumKitHubActions/.github/workflows/FormatCheck.yml@main"
