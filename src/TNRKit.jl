@@ -6,6 +6,7 @@ using MatrixAlgebraKit: TruncationStrategy
 using LoggingExtras, Printf
 using KrylovKit
 using OptimKit, Zygote
+using MPSKit: MPSKit, InfiniteMPS, InfiniteMPO, VUMPS, leading_boundary # TODO: think of re-exporting VUMPS from MPSKit
 using DocStringExtensions
 using SpecialFunctions
 using FastGaussQuadrature
@@ -30,6 +31,7 @@ include("schemes/hotrg.jl")
 include("schemes/hotrg3d.jl")
 include("schemes/atrg.jl")
 include("schemes/atrg3d.jl")
+include("schemes/vbtrg.jl")
 
 # CTM methods
 include("schemes/ctm/utility.jl")
@@ -70,6 +72,7 @@ export HOTRG_3D
 export ATRG
 export ATRG_3D
 export ThermalTNR
+export VBTRG
 
 export CTM
 export Sublattice_CTM

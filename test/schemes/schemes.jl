@@ -199,6 +199,16 @@ end
     @test X2 ≈ 2.0 rtol = 1.0e-2
 end
 
+# VBTRG
+@testset "VBTRG - Ising Model" begin
+    @info "VBTRG ising free energy"
+    # VBTRG only supports Trivial symmetry
+    scheme = VBTRG(classical_ising(Trivial, ising_βc))
+    data = run!(scheme, truncrank(8), maxiter(12))
+
+    @test free_energy(data, ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 1.0e-6
+end
+
 # LoopTNR
 
 @testset "LoopTNR - Anisotropic Ising Model" begin
