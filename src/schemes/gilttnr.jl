@@ -4,7 +4,7 @@ $(TYPEDEF)
 Graph-Independent Local Truncations + Tensor Renormalization Group
 
 # Constructors
-    $(FUNCTIONNAME)(T [; ε=1e-5, giltcrit=giltcrit() & maxiter(20)])
+    $(FUNCTIONNAME)(T [; ε=1e-5, maxiter=20])
 
 # Running the algorithm
     run!(::GILTTNR, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
@@ -12,10 +12,12 @@ Graph-Independent Local Truncations + Tensor Renormalization Group
 Each step first applies Gilt to the four legs of a plaquette of a checkerboard lattice,
 followed by two TRG steps. Each step thus rescales the lattice by a (linear) factor of 2 (use `scalefactor = 4.0` in [`free_energy`](@ref))
 and rotates the lattice by 90 degrees.
+The elementary modular parameter `τ₀ ↦ -1 / τ₀`.
 
-`ε` is the threshold below which (normalized) environment singular values are considered small enough to be truncated by Gilt.
-`giltcrit` is the stopping criterion for the Gilt sweeps over the four legs of the plaquette in each step.
-By default these stop when no leg can be truncated any further, or after 20 sweeps.
+`ε` is the threshold below which (normalized) environment singular values are truncated by Gilt,
+it should be lowered as the bond dimension is increased.
+In each step, Gilt sweeps over the four legs of the plaquette until no leg can be truncated any further,
+or until `maxiter` sweeps have been done.
 
 !!! info "verbosity levels"
     - 0: No output
@@ -31,24 +33,31 @@ $(TYPEDFIELDS)
 * [Hauru et. al. Phys. Rev. B 97 (2018)](@cite hauru2018)
 """
 mutable struct GILTTNR{E, S, TT <: AbstractTensorMap{E, S, 2, 2}} <: TNRScheme{E, S}
-    "central tensor"
+    "Central tensor"
     T::TT
 
     "Gilt threshold"
     ε::Float64
 
-    "stopping criterion for the Gilt sweeps"
-    giltcrit::stopcrit
+    "Maximum number of Gilt sweeps per step"
+    maxiter::Int
 
-    function GILTTNR(
-            T::TT; ε::Real = 1.0e-5, giltcrit::stopcrit = giltcrit() & maxiter(20)
-        ) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
-        return new{E, S, TT}(T, ε, giltcrit)
+    function GILTTNR(T::TT; ε::Real = 1.0e-5, maxiter::Int = 20) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
+        return new{E, S, TT}(T, ε, maxiter)
     end
 end
 
 # Threshold on the singular values of R′ for a leg to be considered converged
 const gilt_convergence_ε = 1.0e-2
+
+# Internal stopping criterion for the Gilt sweeps: stop once no leg of the plaquette can be truncated any further
+struct giltcrit <: stopcrit end
+
+(crit::giltcrit)(steps::Int, done_legs) = !all(values(done_legs))
+
+function stopping_info(::giltcrit, steps::Int, done_legs)
+    return "Gilt criterion reached: all legs converged after $steps sweeps"
+end
 
 #=
 The plaquette that is Gilted, in the [W S; N E] leg convention:
@@ -67,7 +76,7 @@ so the four legs N, E, S, W cover all bonds of the lattice.
 
 function step!(scheme::GILTTNR, trunc::TruncationStrategy)
     # step 1: Gilt on the checkerboard lattice
-    T1, T2 = gilt_plaquette(scheme.T, scheme.T, scheme.ε, scheme.giltcrit)
+    T1, T2 = gilt_plaquette(scheme.T, scheme.T, scheme.ε, scheme.maxiter)
 
     # step 2: TRG on the checkerboard lattice, the new tensors live on the plaquettes that were not Gilted
     A, B = SVD12(T2, trunc)
@@ -81,7 +90,8 @@ function step!(scheme::GILTTNR, trunc::TruncationStrategy)
     return scheme
 end
 
-function gilt_plaquette(T1, T2, ε::Real, crit::stopcrit)
+function gilt_plaquette(T1, T2, ε::Real, max_sweeps::Int)
+    crit = giltcrit() & maxiter(max_sweeps)
     done_legs = Dict(leg => false for leg in (:S, :N, :E, :W))
     sweeps = 0
     t = @elapsed while crit(sweeps, done_legs)
@@ -192,18 +202,6 @@ function Base.show(io::IO, scheme::GILTTNR)
     println(io, "Gilt-TNR - Graph-Independent Local Truncations + TRG")
     println(io, "  * T: $(summary(scheme.T))")
     println(io, "  * ε: $(scheme.ε)")
+    println(io, "  * maxiter: $(scheme.maxiter)")
     return nothing
-end
-
-"""
-$(TYPEDEF)
-
-Stopping criterion for the Gilt sweeps of [`GILTTNR`](@ref): stops when no leg of the plaquette can be truncated any further.
-"""
-struct giltcrit <: stopcrit end
-
-(crit::giltcrit)(steps::Int, done_legs) = !all(values(done_legs))
-
-function stopping_info(::giltcrit, steps::Int, done_legs)
-    return "Gilt criterion reached: all legs converged after $steps sweeps"
 end

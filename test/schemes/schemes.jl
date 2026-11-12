@@ -223,7 +223,7 @@ end
         T_cdl[w1, w2, s1, s2, n1, n2, e1, e2] = C[1][w1, s1] * C[2][s2, e1] * C[3][n2, e2] * C[4][w2, n1]
     end
     T_cdl = TensorMap(reshape(T_cdl, d^2, d^2, d^2, d^2), ℂ^(d^2) ⊗ ℂ^(d^2) ← ℂ^(d^2) ⊗ ℂ^(d^2))
-    T1, T2 = TNRKit.gilt_plaquette(T_cdl, T_cdl, 1.0e-7, TNRKit.giltcrit() & maxiter(20))
+    T1, T2 = TNRKit.gilt_plaquette(T_cdl, T_cdl, 1.0e-7, 20)
     @test all(i -> dim(space(T1, i)) == d && dim(space(T2, i)) == d, 1:4)
 end
 
