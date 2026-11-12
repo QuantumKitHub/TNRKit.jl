@@ -28,6 +28,7 @@ function stopping_info(crit::MultipleCrit, steps::Int, data)
             return stopping_info(c, steps, data)
         end
     end
+    return
 end
 
 function stopping_info(::maxiter, steps::Int, data)

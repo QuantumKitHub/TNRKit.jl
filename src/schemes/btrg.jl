@@ -1,20 +1,53 @@
-mutable struct BTRG <: TNRScheme
-    T::TensorMap
-    S1::TensorMap
-    S2::TensorMap
+"""
+$(TYPEDEF)
+
+Bond-weighted Tensor Renormalization Group
+
+# Constructors
+    $(FUNCTIONNAME)(T [, k=-1/2])
+
+# Running the algorithm
+    run!(::BTRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
+
+Each step rescales the lattice by a (linear) factor of √2
+
+!!! info "verbosity levels"
+    - 0: No output
+    - 1: Print information at start and end of the algorithm
+    - 2: Print information at each step
+
+# Fields
+
+$(TYPEDFIELDS)
+
+# References
+* [Adachi et. al. Phys. Rev. B 105 (2022)](@cite adachi2022)
+"""
+mutable struct BTRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}, BT <: AbstractTensorMap{E, S, 1, 1}} <: TNRScheme{E, S}
+    "Central tensor"
+    T::TT
+
+    "Bond tensor on vertical bonds"
+    S1::BT
+
+    "Bond tensor on horizontal bonds"
+    S2::BT
+
+    "Bond weight exponent"
     k::Float64
 
-    finalize!::Function
-    function BTRG(T::TensorMap, k::Number; finalize=finalize!)
+    function BTRG(T::TT, k::Number) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
         # Construct S1 and S2 as identity matrices.
-        return new(T, id(space(T, 2)), id(space(T, 1)), k, finalize)
+        S1 = id(E, space(T, 2))
+        S2 = id(E, space(T, 1))
+        return new{E, S, TT, typeof(S1)}(T, S1, S2, k)
     end
 end
 
 # Default implementation using the optimal value for k
-BTRG(T::TensorMap; kwargs...) = BTRG(T, -0.5; kwargs...)
+BTRG(T) = BTRG(T, -0.5)
 
-function pseudopow(t::DiagonalTensorMap, a::Real; tol=eps(scalartype(t))^(3 / 4))
+function pseudopow(t::DiagonalTensorMap, a::Real; tol = eps(scalartype(t))^(3 / 4))
     t′ = copy(t)
     for (c, b) in blocks(t′)
         @inbounds for I in LinearAlgebra.diagind(b)
@@ -24,50 +57,41 @@ function pseudopow(t::DiagonalTensorMap, a::Real; tol=eps(scalartype(t))^(3 / 4)
     return t′
 end
 
-function step!(scheme::BTRG, trunc::TensorKit.TruncationScheme)
-    U, S, V, _ = tsvd(scheme.T, ((1, 2), (3, 4)); trunc=trunc)
+function step!(scheme::BTRG, trunc::TruncationStrategy)
+    U, S, V, _ = svd_trunc(scheme.T; trunc = trunc)
 
     S_a = pseudopow(S, (1 - scheme.k) / 2)
     S_b = pseudopow(S, scheme.k)
 
-    @plansor begin
+    @tensor begin
         A[-1 -2; -3] := U[-1 -2; 1] * S_a[1; -3]
         B[-1; -2 -3] := S_a[-1; 1] * V[1; -2 -3]
         S1′[-1; -2] := S_b[-1; -2]
     end
 
-    U, S, V, _ = tsvd(scheme.T, ((1, 4), (2, 3)); trunc=trunc)
-
-    # permute to correct the spaces
-    U = permute(U, ((1,), (2, 3)))
-    V = permute(V, ((1, 2), (3,)))
+    U, S, V, _ = svd_trunc(permute(scheme.T, ((3, 1), (4, 2))); trunc = trunc)
 
     S_a = pseudopow(S, (1 - scheme.k) / 2)
     S_b = pseudopow(S, scheme.k)
 
-    @plansor begin
-        C[-1; -2 -3] := U[-1; -2 1] * S_a[1; -3]
-        D[-1 -2; -3] := S_a[-1; 1] * V[1 -2; -3]
+    @tensor begin
+        C[-1 -2; -3] := U[-1 -2; 1] * S_a[1; -3]
+        D[-1; -2 -3] := S_a[-1; 1] * V[1; -2 -3]
         S2′[-1; -2] := S_b[-1; -2]
     end
 
-    S1 = scheme.S1
-    S2 = scheme.S2
-
-    @tensor scheme.T[-1 -2; -3 -4] := D[-1 7; 4] *
-                                      S1[1; 7] *
-                                      B[-2; 3 1] *
-                                      S2[3; 2] *
-                                      C[2; 8 -3] *
-                                      S1[8; 5] *
-                                      A[6 5; -4] * S2[4; 6]
+    @tensor scheme.T[-1 -2; -3 -4] := D[-1; 4 7] *
+        scheme.S1[1; 7] *
+        B[-2; 1 3] *
+        scheme.S2[3; 2] *
+        C[8 2; -4] *
+        scheme.S1[8; 5] *
+        A[6 5; -3] *
+        scheme.S2[4; 6]
     scheme.S1 = S1′
     scheme.S2 = S2′
     return scheme
 end
-
-# example convcrit function
-btrg_convcrit(steps::Int, data) = abs(log(data[end]) * 2.0^(-steps))
 
 function Base.show(io::IO, scheme::BTRG)
     println(io, "BTRG - Bond-weighted TRG")

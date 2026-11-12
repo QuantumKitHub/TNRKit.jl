@@ -1,9 +1,12 @@
-using Test
+using ParallelTestRunner
 using TNRKit
-using TensorKit
 
-using QuadGK
+# --fast to indicate a smaller set of tests
+args = parse_args(ARGS; custom = ["fast"])
+fast = !isnothing(args.custom["fast"])
 
-include("spaces.jl") # do they give spacemismatches?
-include("ising.jl") # do they give the correct results (with the expected accuracy)?
-include("finalize.jl") # do they give the correct results (with the expected accuracy)?
+const init_code = quote
+    const fast_tests = $fast
+end
+
+ParallelTestRunner.runtests(TNRKit, args; init_code)

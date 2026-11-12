@@ -1,0 +1,21 @@
+using TNRKit
+using Documenter
+using DocumenterCitations
+
+bibpath = joinpath(@__DIR__, "src", "assets", "tnrkit.bib")
+bib = CitationBibliography(bibpath; style = :authoryear)
+
+makedocs(;
+    sitename = "TNRKit.jl",
+    pages = [
+        "Home" => "index.md"
+        "Library" => "lib/lib.md"
+        "Quantum 1+1D" => "quantum_1D.md"
+        "CFT Data" => "cft.md"
+        "Finalizers" => "finalizers.md"
+        "References" => "references.md"
+    ],
+    plugins = [bib]
+)
+
+deploydocs(; repo = "github.com/QuantumKitHub/TNRKit.jl.git", push_preview = true)

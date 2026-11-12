@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Vanthilt
+    given-names: Victor
+    affiliation: Ghent University
+    orcid: https://orcid.org/0009-0007-6239-303X
+  - family-names: Naravane
+    given-names: Adwait
+    orcid: https://orcid.org/0009-0008-0669-8805
+    affiliation: Ghent University
+  - family-names: Ueda
+    given-names: Atsushi
+    orcid: https://orcid.org/0000-0003-1884-6808
+title: "TNRKit"
+version: 0.8.0
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.16836269
+date-released: 2026-10-27

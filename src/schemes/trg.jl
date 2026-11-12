@@ -1,33 +1,46 @@
-mutable struct TRG <: TNRScheme
-    T::TensorMap
+"""
+$(TYPEDEF)
 
-    finalize!::Function
-    function TRG(T::TensorMap; finalize=finalize!)
-        return new(T, finalize)
+Tensor Renormalization Group
+
+# Constructors
+    $(FUNCTIONNAME)(T)
+
+# Running the algorithm
+    run!(::TRG, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
+
+Each step rescales the lattice by a (linear) factor of √2,
+and rotate the lattice by 45 degrees in counter clockwise direction.
+The elementary modular parameter `τ₀ ↦ (τ₀ - 1) / (τ₀ + 1)`.
+
+!!! info "verbosity levels"
+    - 0: No output
+    - 1: Print information at start and end of the algorithm
+    - 2: Print information at each step
+    
+# Fields
+
+$(TYPEDFIELDS)
+
+# References
+* [Levin & Nave Phys. Rev. Letters 99(12) (2007)](@cite levin2007)
+"""
+mutable struct TRG{E, S, TT <: AbstractTensorMap{E, S, 2, 2}} <: TNRScheme{E, S}
+    "central tensor"
+    T::TT
+
+    function TRG(T::TT) where {E, S, TT <: AbstractTensorMap{E, S, 2, 2}}
+        return new{E, S, TT}(T)
     end
 end
 
-function step!(scheme::TRG, trunc::TensorKit.TruncationScheme)
-    U, S, V, _ = tsvd(scheme.T, ((1, 2), (3, 4)); trunc=trunc)
-
-    @plansor begin
-        A[-1 -2; -3] := U[-1 -2; 1] * sqrt(S)[1; -3]
-        B[-1; -2 -3] := sqrt(S)[-1; 1] * V[1; -2 -3]
-    end
-
-    U, S, V, _ = tsvd(scheme.T, ((1, 4), (2, 3)); trunc=trunc)
-
-    @plansor begin
-        C[-1 -2; -3] := U[-1 -2; 1] * sqrt(S)[1; -3]
-        D[-1; -2 -3] := sqrt(S)[-1; 1] * V[1; -2 -3]
-    end
-
-    @tensor scheme.T[-1 -2; -3 -4] := D[-1; 1 4] * B[-2; 3 1] * C[3 2; -3] * A[4 2; -4]
+function step!(scheme::TRG, trunc::TruncationStrategy)
+    A, B = SVD12(scheme.T, trunc)
+    Tp = transpose(scheme.T, ((2, 4), (1, 3)))
+    C, D = SVD12(Tp, trunc)
+    @plansor scheme.T[-1 -2; -3 -4] := D[-2; 1 2] * B[-1; 4 1] * C[4 3; -3] * A[3 2; -4]
     return scheme
 end
-
-# example convcrit function
-trg_convcrit(steps::Int, data) = abs(log(data[end]) * 2.0^(-steps))
 
 function Base.show(io::IO, scheme::TRG)
     println(io, "TRG - Tensor Renormalization Group")
