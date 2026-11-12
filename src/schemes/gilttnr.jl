@@ -50,6 +50,9 @@ end
 # Threshold on the singular values of R′ for a leg to be considered converged
 const gilt_convergence_ε = 1.0e-2
 
+# Maximal recursion depth when optimizing R′, guards against R′ spectra that stall just outside `gilt_convergence_ε`
+const gilt_max_recursion = 20
+
 # Internal stopping criterion for the Gilt sweeps: stop once no leg of the plaquette can be truncated any further
 struct giltcrit <: stopcrit end
 
@@ -161,20 +164,20 @@ Construct the matrix R′ that replaces the identity on the cut leg, recursively
 until the leg cannot be truncated further. The returned `R′[a; b]` has its codomain leg on the
 side of the tensor whose domain leg forms the bond.
 """
-function gilt_optimize_R(U, S, ε::Real)
-    # t′ minimizes |(t - t′)S|² + ε²|t′|²
-    @tensor t[-1] := U[1 1; -1]
+function gilt_optimize_R(U, S, ε::Real; depth::Int = 1)
+    # t′ minimizes |(t - t′)S|² + ε²|t′|², t is the identity on the bond (closing the loop needs a twist for fermions)
+    @tensor t[-1] := twist(U, 1)[1 1; -1]
     weight = S^2 * inv(S^2 + ε^2 * id(domain(S)))
     @tensor t′[-1] := weight[1; -1] * t[1]
     @tensor R[-1; -2] := conj(U[-2 -1; 1]) * t′[1]
 
     u, s, v = svd_trunc(R; trunc = truncerror(; rtol = ε * 1.0e-3))
-    if !all(x -> abs(x - 1) < gilt_convergence_ε, s.data)
+    if depth < gilt_max_recursion && !all(x -> abs(x - 1) < gilt_convergence_ε, s.data)
         us, sv = u * sqrt(s), sqrt(s) * v
         @tensor UR[-1 -2; -3] := U[1 2; 3] * sv[-1; 1] * us[2; -2] * S[3; -3]
         Uinner, Sinner, _ = svd_compact(UR)
         Sinner /= tr(Sinner)
-        R = us * gilt_optimize_R(Uinner, Sinner, ε) * sv
+        R = us * gilt_optimize_R(Uinner, Sinner, ε; depth = depth + 1) * sv
     end
     return R
 end
