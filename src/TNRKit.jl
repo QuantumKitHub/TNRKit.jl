@@ -30,6 +30,7 @@ include("schemes/hotrg.jl")
 include("schemes/hotrg3d.jl")
 include("schemes/atrg.jl")
 include("schemes/atrg3d.jl")
+include("schemes/gilttnr.jl")
 
 # CTM methods
 include("schemes/ctm/utility.jl")
@@ -69,6 +70,7 @@ export HOTRG
 export HOTRG_3D
 export ATRG
 export ATRG_3D
+export GILTTNR
 export ThermalTNR
 
 export CTM

@@ -17,6 +17,7 @@ Many common TNR schemes have already been implemented:
 * [`BTRG`](@ref) (bond-weighted TRG)
 * [`LoopTNR`](@ref) (entanglement filtering + loop optimization)
 * [`SLoopTNR`](@ref) (c4 & inversion symmetric LoopTNR)
+* [`GILTTNR`](@ref) (graph-independent local truncations + TRG)
 * [`HOTRG`](@ref) (higher order TRG)
 * [`ATRG`](@ref) (anisotropic TRG)
 
