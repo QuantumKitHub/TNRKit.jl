@@ -40,6 +40,7 @@ The following schemes are currently implemented:
 - BTRG (bond-weighted TRG)
 - LoopTNR (entanglement filtering + loop optimization)
 - SLoopTNR (C4 & inversion symmetric LoopTNR)
+- GILTTNR (graph-independent local truncations + TRG)
 - HOTRG (higher order TRG)
 - ATRG (anisotropic TRG)
 

@@ -40,6 +40,13 @@ end
     @test free_energy(data, 1.0) ≈ f_bench rtol = 1.0e-3
 end
 
+# === GILTTNR ===
+@testset "GILTTNR - Gross-Neveu Model" begin
+    scheme = GILTTNR(T; ε = 1.0e-6)
+    data = run!(scheme, truncrank(16), maxiter(12))
+    @test free_energy(data, 1.0; scalefactor = 4.0) ≈ f_bench rtol = 1.0e-3
+end
+
 # === c4vCTM ===
 @testset "c4vCTM - Gross-Neveu Model" begin
     # Use the Gross-Neveu model, but symmetrize the tensor such that the conditions of C4vCTM are satisfied
@@ -56,10 +63,10 @@ end
     data_c4vCTM = run!(c4vCTM(T_flipped_C4v), truncrank(8), maxiter(10))
     free_energy_c4vCTM = -data_c4vCTM / β
 
-    schemes = [TRG, BTRG, HOTRG, ATRG, LoopTNR]
+    schemes = [TRG, BTRG, HOTRG, ATRG, LoopTNR, GILTTNR]
     for scheme in schemes
         data = run!(scheme(T_flipped_C4v), truncrank(8), maxiter(10))
-        scalefactor = scheme ∈ [HOTRG, ATRG] ? 4.0 : 2.0
+        scalefactor = scheme ∈ [HOTRG, ATRG, GILTTNR] ? 4.0 : 2.0
         @test free_energy_c4vCTM ≈ free_energy(data, β; scalefactor) rtol = 1.0e-9
     end
 end
