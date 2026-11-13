@@ -6,8 +6,10 @@
 function f_complex(ℝϕ1::Float64, ℂϕ1::Float64, ℝϕ2::Float64, ℂϕ2::Float64, μ0::Float64, λ::Float64)
     return exp(
         -1 / 2 * ((ℝϕ1 - ℝϕ2)^2 + (ℂϕ1 - ℂϕ2)^2)
-            - μ0 / 8 * (ℝϕ1^2 + ℂϕ1^2 + ℝϕ2^2 + ℂϕ2^2)
-            - λ / 16 * ((ℝϕ1^2 + ℂϕ1^2)^2 + (ℝϕ2^2 + ℂϕ2^2)^2)
+            -
+            μ0 / 8 * (ℝϕ1^2 + ℂϕ1^2 + ℝϕ2^2 + ℂϕ2^2)
+            -
+            λ / 16 * ((ℝϕ1^2 + ℂϕ1^2)^2 + (ℝϕ2^2 + ℂϕ2^2)^2)
     )
 end
 
@@ -52,6 +54,60 @@ function precompute_moments_complex(K, μ0, λ)
         M[n + 1] = val
     end
     return M
+end
+
+# For phi4_complex_U1 and phi4_complex_CU1
+# `logfact[n + 1] == log(n!)`, accumulated in log space so that it stays finite
+# for the large `K` where `factorial(n)` would overflow.
+function phi4_complex_logfactorials(K)
+    return [0.0; cumsum(log.(1.0:(K - 1)))]
+end
+
+# For phi4_complex_U1 and phi4_complex_CU1
+# A single entry of the Taylor-expanded tensor in the exponent basis, in which a
+# leg state |a, b⟩ carries `a` powers of ϕ and `b` powers of ϕ̄:
+#
+#            2π δ(a + c + f + h - b - d - e - g)
+#     ─────────────────────────────────────────────── × ∫₀^∞ dr r^{a+b+…+h+1}
+#      √(2^{a+b+…+h} a! b! c! d! e! f! g! h!)              × exp(-(2 + µ_0²/2) r² - (λ/4) r⁴)
+#
+# with the radial integral supplied by `precompute_moments_complex`.
+function phi4_complex_weight(moments, logfact, a, b, c, d, e, f, g, h)
+    # The δ, i.e. U(1) charge conservation: (a - b) + (c - d) == (e - f) + (g - h)
+    (a + c + f + h == b + d + e + g) || return 0.0
+
+    n = a + b + c + d + e + f + g + h
+    M = moments[n + 2]
+    iszero(M) && return 0.0
+
+    logdenom = 0.5 * (
+        log(2) * n +
+            logfact[a + 1] + logfact[b + 1] + logfact[c + 1] + logfact[d + 1] +
+            logfact[e + 1] + logfact[f + 1] + logfact[g + 1] + logfact[h + 1]
+    )
+    return 2π * M / exp(logdenom)
+end
+
+# For phi4_complex_CU1
+# CU(1) = O(2) adapted leg space. Charge conjugation acts on the exponent basis
+# as C|a, b⟩ = |b, a⟩, so the states organise into irreps as
+#   * a - b == 0: |a, a⟩ is C-even            -> sector (0, 0), multiplicity K
+#   * a - b == q > 0: {|b+q, b⟩, |b, b+q⟩}    -> sector (q, 2), multiplicity K - q
+# The C-odd sector (0, 1) does not occur. The total dimension is
+# K + 2 Σ_{q=1}^{K-1} (K - q) = K^2, the same bond dimension as the U(1) tensor.
+function phi4_complex_cu1_space(K)
+    return CU1Space(vcat([(0, 0) => K], [(q, 2) => K - q for q in 1:(K - 1)]))
+end
+
+# For phi4_complex_CU1
+# Exponents (a, b) of the leg state at position `i` inside CU1 sector `s` with
+# multiplicity index `m`. TensorKitSectors fixes the basis of a two-dimensional
+# (j, 2) irrep to be (index 1, index 2) = (charge +j, charge -j) -- see the
+# `fusiontensor(::CU1Irrep, ...)` branch `c.j == a.j + b.j`
+function phi4_complex_cu1_exponents(s::CU1Irrep, i::Integer, m::Integer)
+    q = convert(Int, s.j)
+    q == 0 && return (m - 1, m - 1)
+    return i == 1 ? (m - 1 + q, m - 1) : (m - 1, m - 1 + q)
 end
 
 # For phi4_complex_Z2Z2
@@ -147,12 +203,13 @@ end
     phi4_complex(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
     phi4_complex(::Type{Z2Irrep ⊠ Z2Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
     phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
+    phi4_complex(::Type{CU1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
 
 Constructs the partition function tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
 
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
-Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry or explicit U(1) symmetry on each of its spaces.
+Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry, explicit U(1) symmetry or explicit CU(1) = O(2) symmetry on each of its spaces.
 Defaults to U(1) symmetry if the symmetry type is not provided.
 
 # Arguments
@@ -173,6 +230,21 @@ The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
 The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
 
+Every leg carries a pair of Taylor exponents `(a, b)`, it counts the powers of ϕ and of ϕ̄, so
+it carries the U(1) charge `q = a - b`.
+
+## CU(1) = O(2) symmetry
+Charge conjugation `C: ϕ ↔ ϕ̄` is a symmetry of the model which combined with U(1) gives the O(2) symmetry group.
+The tensor is invariant under the charge-conjugation operation, which is just the global swap
+ `(a, c, e, g) ↔ (b, d, f, h)`, so the U(1) tensor is in fact O(2) = U(1) ⋊ C
+symmetric.
+
+Since `C|a, b⟩ = |b, a⟩` on a leg, the leg space is
+`V = (0, 0)^K ⊕ (1, 2)^{K-1} ⊕ … ⊕ (K-1, 2)^1`: the neutral states `|a, a⟩` are C-even and
+the charge `±q` states pair up into the two-dimensional irrep `(q, 2)`. The C-odd sector
+`(0, 1)` does not appear. The total bond dimension is again `K^2`, but each `±q` pair of
+U(1) blocks is merged into a single block, roughly halving the amount of stored data.
+
 # Examples
 ```julia
     phi4_complex(10, -1., 1.)
@@ -182,7 +254,7 @@ The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
     When studying this model with impurities, the tensor without symmetry should be constructed, as the impurity breaks the symmetry.
 
 # References
-Piceu Jarid and Adwait Naravane, but based on:
+Jarid Piceu and Adwait Naravane, but based on:
 * [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 * [Delcamp et. al. Phys. Rev. Research 2, 033278 (2020)](@cite delcamp2020)
 
@@ -270,7 +342,7 @@ function phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T:
     end
 
     moments = precompute_moments_complex(K, μ0, λ)
-    logfact = log.(factorial.(0:(K - 1)))
+    logfact = phi4_complex_logfactorials(K)
 
     V1 = U1Space([U1Irrep(q) => 1 for q in 0:(K - 1)]...)
     V2 = U1Space([U1Irrep(q) => 1 for q in 0:-1:(-K + 1)]...)
@@ -303,32 +375,28 @@ function phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T:
         # index as block[i1, i2, i3, i4] where each i is the multiplicity index
 
         for a in max(0, q1):min(K - 1, q1 + K - 1)
-            B = a - q1;  (0 <= B <= K - 1) || continue
+            B = a - q1
+            (0 <= B <= K - 1) || continue
             i1 = mult_index[q1][a]
 
             for c in max(0, q2):min(K - 1, q2 + K - 1)
-                D = c - q2;  (0 <= D <= K - 1) || continue
+                D = c - q2
+                (0 <= D <= K - 1) || continue
                 i2 = mult_index[q2][c]
 
                 for e in max(0, q3):min(K - 1, q3 + K - 1)
-                    F = e - q3;  (0 <= F <= K - 1) || continue
+                    F = e - q3
+                    (0 <= F <= K - 1) || continue
                     i3 = mult_index[q3][e]
 
                     for g in max(0, q4):min(K - 1, q4 + K - 1)
-                        H = g - q4;  (0 <= H <= K - 1) || continue
+                        H = g - q4
+                        (0 <= H <= K - 1) || continue
                         i4 = mult_index[q4][g]
 
-                        sum_power = a + B + c + D + e + F + g + H
-                        M = moments[sum_power + 2]
-                        (M == 0.0) && continue
-
-                        logdenom = 0.5 * (
-                            log(2) * sum_power +
-                                logfact[a + 1] + logfact[B + 1] + logfact[c + 1] + logfact[D + 1] +
-                                logfact[e + 1] + logfact[F + 1] + logfact[g + 1] + logfact[H + 1]
+                        block[i1, i2, i3, i4] += phi4_complex_weight(
+                            moments, logfact, a, B, c, D, e, F, g, H
                         )
-
-                        block[i1, i2, i3, i4] += 2π * M / exp(logdenom)
                     end
                 end
             end
@@ -336,6 +404,67 @@ function phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T:
     end
 
     return T_fused
+end
+
+function phi4_complex(::Type{CU1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
+    if K % 2 != 0
+        error("K must be even")
+    end
+
+    moments = precompute_moments_complex(K, μ0, λ)
+    logfact = phi4_complex_logfactorials(K)
+
+    V = phi4_complex_cu1_space(K)
+    t = zeros(T, V ⊗ V ← V ⊗ V)
+
+    trees = collect(fusiontrees(t))
+    @threads for (split_tree, fuse_tree) in trees
+        s1, s2 = split_tree.uncoupled
+        s3, s4 = fuse_tree.uncoupled
+        c = split_tree.coupled
+
+        # Clebsch-Gordan tensors of the two vertices. None of the legs is dual,
+        # so these are the bare `fusiontensor`s of the sectors involved.
+        C12 = fusiontensor(s1, s2, c)
+        C34 = fusiontensor(s3, s4, c)
+
+        block = t[split_tree, fuse_tree]
+        # block has shape (mult(s1) × mult(s2)) × (mult(s3) × mult(s4))
+
+        for i1 in 1:dim(s1), i2 in 1:dim(s2), i3 in 1:dim(s3), i4 in 1:dim(s4)
+            # The projector onto this pair of fusion trees, normalised as in
+            # `TensorKit.project_symmetric!`.
+            w = zero(eltype(C12))
+            for μ in 1:dim(c)
+                w += C12[i1, i2, μ, 1] * C34[i3, i4, μ, 1]
+            end
+            iszero(w) && continue
+            w /= dim(c)
+
+            for m1 in axes(block, 1)
+                a, b = phi4_complex_cu1_exponents(s1, i1, m1)
+
+                for m2 in axes(block, 2)
+                    cc, d = phi4_complex_cu1_exponents(s2, i2, m2)
+
+                    for m3 in axes(block, 3)
+                        e, f = phi4_complex_cu1_exponents(s3, i3, m3)
+
+                        for m4 in axes(block, 4)
+                            g, h = phi4_complex_cu1_exponents(s4, i4, m4)
+
+                            v = phi4_complex_weight(moments, logfact, a, b, cc, d, e, f, g, h)
+                            iszero(v) && continue
+
+                            block[m1, m2, m3, m4] += w * v
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return t
 end
 
 """

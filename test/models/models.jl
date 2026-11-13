@@ -2,6 +2,7 @@ using Test
 using TNRKit
 using TensorKit
 using TensorKitSectors
+using LinearAlgebra
 
 println("--------------------")
 println(" Testing all models ")
@@ -35,6 +36,8 @@ model_temp_answer_string_2d = [
     (phi4_complex(Trivial, 6, -1.0, 1.0), -1.0, 0.7583605364656325, "Complex φ⁴ model with no symmetry"), # This is an approximation!
     (phi4_complex(6, -1.0, 1.0), -1.0, 0.7673189874157453, "Complex φ⁴ model with U(1) symmetry"), # This is an approximation!
     (phi4_complex(Z2Irrep ⊠ Z2Irrep, 6, -1.0, 1.0), -1.0, 0.7665677554973079, "Complex φ⁴ model with ℤ₂ × ℤ₂ symmetry"), # This is an approximation!
+    (phi4_complex(U1Irrep, 6, -1.0, 1.0), -1.0, 0.7673189874157453, "Complex φ⁴ model with U(1) symmetry"), # This is an approximation!
+    (phi4_complex(CU1Irrep, 6, -1.0, 1.0), -1.0, 0.7673190424140406, "Complex φ⁴ model with CU(1) symmetry"), # This is an approximation!
 ]
 
 model_temp_answer_string_3d = [
@@ -48,6 +51,35 @@ for (model, temp, answer, description) in model_temp_answer_string_2d
         data = run!(scheme, truncrank(16), maxiter(25))
         @test free_energy(data, temp) ≈ answer rtol = 1.0e-3
     end
+end
+
+@testset "Complex φ⁴ - CU(1) is the U(1) tensor in an O(2) adapted basis" begin
+    K, μ0, λ = 4, -1.0, 1.0
+    T_u1 = phi4_complex(U1Irrep, K, μ0, λ)
+    T_cu1 = phi4_complex(CU1Irrep, K, μ0, λ)
+
+    # Same bond dimension, but every ±q pair of U(1) blocks is merged into one.
+    @test dim(space(T_cu1, 1)) == K^2
+    @test dim(space(T_cu1, 1)) == dim(space(T_u1, 1))
+    @test length(blocks(T_cu1)) < length(blocks(T_u1))
+
+    # Projecting onto CU(1) discards whatever is not O(2) symmetric, so an
+    # unchanged norm is exactly the statement that nothing was thrown away.
+    @test norm(T_cu1) ≈ norm(T_u1)
+
+    # Basis independent contractions: the 1×1 and 2×2 tori.
+    @tensor z_u1 = T_u1[a b; a b]
+    @tensor z_cu1 = T_cu1[a b; a b]
+    @test z_cu1 ≈ z_u1
+
+    @tensor z2_u1 = T_u1[a b; c d] * T_u1[c e; a f] * T_u1[g f; h b] * T_u1[h d; g e]
+    @tensor z2_cu1 = T_cu1[a b; c d] * T_cu1[c e; a f] * T_cu1[g f; h b] * T_cu1[h d; g e]
+    @test z2_cu1 ≈ z2_u1
+
+    # ... and the full spectrum of T seen as a (V ⊗ V) × (V ⊗ V) matrix.
+    σ_u1 = sort(svdvals(reshape(convert(Array, T_u1), K^4, K^4)); rev = true)
+    σ_cu1 = sort(svdvals(reshape(convert(Array, T_cu1), K^4, K^4)); rev = true)
+    @test σ_cu1 ≈ σ_u1
 end
 
 @testset "LoopTNR - 2D XY model" begin
