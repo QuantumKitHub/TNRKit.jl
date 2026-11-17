@@ -83,7 +83,7 @@ function step!(scheme::GILTTNR, trunc::TruncationStrategy)
     # step 2: TRG on the checkerboard lattice, the new tensors live on the plaquettes that were not Gilted
     A, B = SVD12(T2, trunc)
     C, D = SVD12(transpose(T1, ((2, 4), (1, 3))), trunc)
-    @plansor T[-1 -2; -3 -4] := D[-2; 1 2] * B[-1; 4 1] * C[4 3; -3] * A[3 2; -4]
+    @plansor scheme.T[-1 -2; -3 -4] := D[-2; 1 2] * B[-1; 4 1] * C[4 3; -3] * A[3 2; -4]
     return scheme
 end
 
