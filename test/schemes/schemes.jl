@@ -205,14 +205,14 @@ end
 @testset "GILTTNR - Ising Model" begin
     @info "GILTTNR ising free energy and CFT data"
     scheme = GILTTNR(T; ε = 1.0e-5)
-    data = run!(scheme, truncrank(16), maxiter(5))
+    data = run!(scheme, truncrank(16), maxiter(10))
 
     cft = sort(CFTData(scheme; shape = [1, 1, 0]).scaling_dimensions[2:end]; by = abs) .|> real
     @test cft[1] ≈ ising_cft_exact[1] rtol = 1.0e-2
     @test cft[2] ≈ ising_cft_exact[2] rtol = 2.0e-2
 
     # continue the same flow to converge the free energy
-    append!(data, run!(scheme, truncrank(16), maxiter(5); finalize_beginning = false))
+    append!(data, run!(scheme, truncrank(16), maxiter(10); finalize_beginning = false))
     @test free_energy(data, ising_βc; scalefactor = 2.0) ≈ f_onsager rtol = 1.0e-6
 
     @info "Gilt removes the loops of a corner double line tensor"
