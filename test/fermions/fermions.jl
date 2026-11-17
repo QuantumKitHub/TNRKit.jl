@@ -44,7 +44,7 @@ end
 @testset "GILTTNR - Gross-Neveu Model" begin
     scheme = GILTTNR(T; ε = 1.0e-6)
     data = run!(scheme, truncrank(16), maxiter(12))
-    @test free_energy(data, 1.0; scalefactor = 4.0) ≈ f_bench rtol = 1.0e-3
+    @test free_energy(data, 1.0; scalefactor = 2.0) ≈ f_bench rtol = 1.0e-3
 end
 
 # === c4vCTM ===

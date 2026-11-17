@@ -9,10 +9,9 @@ Graph-Independent Local Truncations + Tensor Renormalization Group
 # Running the algorithm
     run!(::GILTTNR, trunc::TruncationStrategy, stop::Stopcrit[, finalizer=default_Finalizer, finalize_beginning=true, verbosity=1])
 
-Each step first applies Gilt to the four legs of a plaquette of a checkerboard lattice,
-followed by two TRG steps. Each step thus rescales the lattice by a (linear) factor of 2 (use `scalefactor = 4.0` in [`free_energy`](@ref))
-and rotates the lattice by 90 degrees.
-The elementary modular parameter `τ₀ ↦ -1 / τ₀`.
+Each step rescales the lattice by a (linear) factor of √2,
+and rotate the lattice by 45 degrees in counter clockwise direction.
+The elementary modular parameter `τ₀ ↦ (τ₀ - 1) / (τ₀ + 1)`.
 
 `ε` is the threshold below which (normalized) environment singular values are truncated by Gilt,
 it should be lowered as the bond dimension is increased.
@@ -85,11 +84,6 @@ function step!(scheme::GILTTNR, trunc::TruncationStrategy)
     A, B = SVD12(T2, trunc)
     C, D = SVD12(transpose(T1, ((2, 4), (1, 3))), trunc)
     @plansor T[-1 -2; -3 -4] := D[-2; 1 2] * B[-1; 4 1] * C[4 3; -3] * A[3 2; -4]
-
-    # step 3: TRG on the homogeneous lattice
-    A, B = SVD12(T, trunc)
-    C, D = SVD12(transpose(T, ((2, 4), (1, 3))), trunc)
-    @plansor scheme.T[-1 -2; -3 -4] := D[-2; 1 2] * B[-1; 4 1] * C[4 3; -3] * A[3 2; -4]
     return scheme
 end
 

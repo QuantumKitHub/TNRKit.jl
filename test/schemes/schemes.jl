@@ -213,7 +213,7 @@ end
 
     # continue the same flow to converge the free energy
     append!(data, run!(scheme, truncrank(16), maxiter(5); finalize_beginning = false))
-    @test free_energy(data, ising_βc; scalefactor = 4.0) ≈ f_onsager rtol = 1.0e-6
+    @test free_energy(data, ising_βc; scalefactor = 2.0) ≈ f_onsager rtol = 1.0e-6
 
     @info "Gilt removes the loops of a corner double line tensor"
     d = 3
