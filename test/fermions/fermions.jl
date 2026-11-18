@@ -66,7 +66,7 @@ end
     schemes = [TRG, BTRG, HOTRG, ATRG, LoopTNR, GILTTNR]
     for scheme in schemes
         data = run!(scheme(T_flipped_C4v), truncrank(8), maxiter(10))
-        scalefactor = scheme ∈ [HOTRG, ATRG, GILTTNR] ? 4.0 : 2.0
+        scalefactor = scheme ∈ [HOTRG, ATRG] ? 4.0 : 2.0
         @test free_energy_c4vCTM ≈ free_energy(data, β; scalefactor) rtol = 1.0e-9
     end
 end
