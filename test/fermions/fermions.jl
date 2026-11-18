@@ -44,7 +44,7 @@ end
 @testset "GILTTNR - Gross-Neveu Model" begin
     scheme = GILTTNR(T; ε = 1.0e-6)
     data = run!(scheme, truncrank(16), maxiter(12))
-    @test free_energy(data, 1.0; scalefactor = 4.0) ≈ f_bench rtol = 1.0e-3
+    @test free_energy(data, 1.0; scalefactor = 2.0) ≈ f_bench rtol = 1.0e-3
 end
 
 # === c4vCTM ===
@@ -66,7 +66,7 @@ end
     schemes = [TRG, BTRG, HOTRG, ATRG, LoopTNR, GILTTNR]
     for scheme in schemes
         data = run!(scheme(T_flipped_C4v), truncrank(8), maxiter(10))
-        scalefactor = scheme ∈ [HOTRG, ATRG, GILTTNR] ? 4.0 : 2.0
+        scalefactor = scheme ∈ [HOTRG, ATRG] ? 4.0 : 2.0
         @test free_energy_c4vCTM ≈ free_energy(data, β; scalefactor) rtol = 1.0e-9
     end
 end
