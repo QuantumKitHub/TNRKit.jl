@@ -2,7 +2,8 @@
 #       HELPER FUNCTIONS            #
 #####################################
 
-# For phi4_complex and such
+# Boltzmann weight of a single bond between two sites with fields ϕ₁ = ℝϕ1 + iℂϕ1 and ϕ₂ = ℝϕ2 + iℂϕ2.
+# The on-site terms are distributed evenly over the four bonds attached to each site.
 function f_complex(ℝϕ1::Float64, ℂϕ1::Float64, ℝϕ2::Float64, ℂϕ2::Float64, μ0::Float64, λ::Float64)
     return exp(
         -1 / 2 * ((ℝϕ1 - ℝϕ2)^2 + (ℂϕ1 - ℂϕ2)^2)
@@ -11,7 +12,7 @@ function f_complex(ℝϕ1::Float64, ℂϕ1::Float64, ℝϕ2::Float64, ℂϕ2::Fl
     )
 end
 
-# For phi4_complex and such
+# Bond weight `f_complex` evaluated on all pairs of Gauss-Hermite nodes `ys`, as a K² × K² matrix.
 function fmatrix_complex(ys::Vector{Float64}, μ0::Float64, λ::Float64)
     K = length(ys)
     matrix = zeros(K^2, K^2)
@@ -35,108 +36,126 @@ function fmatrix_complex(ys::Vector{Float64}, μ0::Float64, λ::Float64)
     return TensorMap(matrix, ℂ^(K^2) ← ℂ^(K^2))
 end
 
-# For phi4_complex_U1
-function precompute_moments_complex(K, μ0, λ)
-    a = 2 + μ0 / 2
-    b = λ / 4     # convention, yeah, convention
-    nmax = 8 * (K - 1) + 1
-    M = zeros(Float64, nmax + 1)
-
-    for n in 0:nmax
-        f(r) = begin
-            logval = n * log(r) - a * r^2 - b * r^4
-            return exp(logval)        # safe everywhere, never NaN
-        end
-
-        val, _ = quadgk(f, 0.0, Inf; rtol = 1.0e-8, maxevals = 10^7)
-        M[n + 1] = val
-    end
-    return M
-end
-
-# For phi4_complex_Z2Z2
-function precompute_radial_integrals(N, μ0, λ; rtol = 1.0e-8)
-
+# Radial moments M[n + 1] = ∫₀^∞ rⁿ exp(-(2 + μ0 / 2) r² - λ / 4 r⁴) dr for n = 0, …, nmax.
+function radial_moments_complex(nmax::Integer, μ0::Float64, λ::Float64)
+    λ >= 0 || throw(ArgumentError("The radial integrals diverge for λ < 0"))
     a = 2 + μ0 / 2
     b = λ / 4
-
-    b >= 0 || error("Integral diverges for λ < 0")
-
-    I = Dict{Int, Float64}()
-
-    # Only even n up to 2N are needed
-    for n in 0:2:2N
-
-        f(r) = r^(n + 1) * exp(-a * r^2 - b * r^4)
-
-        val, _ = quadgk(f, 0, Inf; rtol = rtol)
-
-        I[n] = val
+    return map(0:nmax) do n
+        # Evaluate in log-space to avoid Inf * 0 = NaN for large r
+        integrand(r) = exp(n * log(r) - a * r^2 - b * r^4)
+        return first(quadgk(integrand, 0.0, Inf; rtol = 1.0e-8, maxevals = 10^7))
     end
-
-    return I
 end
 
-# For phi4_complex_Z2Z2
-function moment_matrix(N, μ0, λ; rtol = 1.0e-8)
+#####################################
+#   Gauss-Hermite quadrature        #
+#####################################
 
-    M = zeros(Float64, N + 1, N + 1)
+# On-site insertions g(Re ϕ, Im ϕ) for the partition function and the impurity tensors.
+const PHI4_COMPLEX_INSERTIONS = (
+    one = (_, _) -> 1,
+    ϕ = (x, y) -> x + y * im,
+    ϕdag = (x, y) -> x - y * im,
+    ϕabs = (x, y) -> sqrt(x^2 + y^2),
+    ϕ2 = (x, y) -> x^2 + y^2,
+)
 
-    # Precompute radial integrals
-    I = precompute_radial_integrals(N, μ0, λ; rtol = rtol)
-
-    for α in 0:N
-        for β in α:N   # upper triangle only
-
-            if iseven(α) && iseven(β)
-
-                n = α + β
-
-                C = 2 * beta((α + 1) / 2, (β + 1) / 2)
-
-                val = C * I[n]
-
-                M[α + 1, β + 1] = val
-                M[β + 1, α + 1] = val  # symmetry
-            end
-        end
-    end
-
-    return M
-end
-
-function phi4_complex_tensor(f::TensorMap{TT, SS, NN, NN}, weights::Matrix{<:Number}; T::Type{<:Number} = ComplexF64) where {TT, SS, NN} # for Trivial symmetry
-    K = size(weights, 1)
+# Builds one Gauss-Hermite tensor per on-site insertion in `insertions`.
+# All tensors share the SVD of the bond matrix, so computing them together is cheaper.
+function phi4_complex_quadrature_tensors(K::Integer, μ0::Float64, λ::Float64, insertions::Tuple; T::Type{<:Number})
+    ys, ws = gausshermite(K)
     N = K^2
-    perms = collect(permutations(1:4))  # 24 total
 
-    U, S, V = svd_compact!(f)
-    T_arr = zeros(T, N, N, N, N)
+    # Quadrature weights; exp(y²) undoes the Gauss-Hermite weight function
+    weights = map(insertions) do g
+        return [g(ys[α], ys[β]) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
+    end
+
+    U, S, V = map(x -> convert(Array, x), svd_compact!(fmatrix_complex(ys, μ0, λ)))
+    sqrtS = sqrt.(diag(S))
+
+    arrays = map(_ -> zeros(T, N, N, N, N), insertions)
+    perms = collect(permutations(1:4))
 
     @threads for i in 1:N
         for j in i:N, k in j:N, l in k:N
-            s = 0.0
-            factor = √(S[i, i] * S[j, j] * S[k, k] * S[l, l])
+            factor = sqrtS[i] * sqrtS[j] * sqrtS[k] * sqrtS[l]
+            sums = map(w -> zero(promote_type(eltype(w), Float64)), weights)
             for α in 1:K, β in 1:K
-                s += factor *
-                    weights[α, β] *
-                    U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] *
-                    V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
+                idx = (α - 1) * K + β
+                x = factor * U[idx, i] * U[idx, j] * V[k, idx] * V[l, idx]
+                sums = map((s, w) -> s + w[α, β] * x, sums, weights)
             end
 
             # Fill all 24 symmetric permutations
             idxs = (i, j, k, l)
             for p in perms
-                ii, jj, kk, ll = idxs[p[1]], idxs[p[2]], idxs[p[3]], idxs[p[4]]
-                T_arr[ii, jj, kk, ll] = s
+                I = ntuple(n -> idxs[p[n]], 4)
+                foreach((A, s) -> A[I...] = s, arrays, sums)
             end
         end
     end
 
-    T = TensorMap(T_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    return T
+    return map(A -> TensorMap(A, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N), arrays)
 end
 
+#####################################
+#   Taylor expansion, ℤ₂ × ℤ₂       #
+#####################################
+
+# M[α + 1, β + 1] = ∫ d²ϕ (Re ϕ)^α (Im ϕ)^β exp(-(2 + μ0 / 2) |ϕ|² - λ / 4 |ϕ|⁴) for α, β = 0, …, N.
+# Only even α and β give non-zero values.
+function phi4_complex_z2z2_moments(N::Integer, μ0::Float64, λ::Float64)
+    radial = radial_moments_complex(2N + 1, μ0, λ)
+    M = zeros(Float64, N + 1, N + 1)
+    for α in 0:2:N, β in α:2:N
+        # Angular integral ∫₀^{2π} cos^α θ sin^β θ dθ times the radial integral ∫₀^∞ r^(α + β + 1) (...) dr
+        val = 2 * beta((α + 1) / 2, (β + 1) / 2) * radial[α + β + 2]
+        M[α + 1, β + 1] = val
+        M[β + 1, α + 1] = val
+    end
+    return M
+end
+
+#####################################
+#   Taylor expansion, U(1) and O(2) #
+#####################################
+
+# Bond space for the U(1) symmetric tensor: charge q appears K - |q| times.
+function phi4_complex_space(::Type{U1Irrep}, K::Integer)
+    return Vect[U1Irrep](q => K - abs(q) for q in (-(K - 1)):(K - 1))
+end
+# Bond space for the O(2) symmetric tensor: the charges ±q are combined into the
+# two-dimensional irrep CU1Irrep(q, 2), which appears K - q times.
+function phi4_complex_space(::Type{CU1Irrep}, K::Integer)
+    return Vect[CU1Irrep]((0, 0) => K, ((q, 2) => K - q for q in 1:(K - 1))...)
+end
+
+# Exponents (n, n̄) of the monomial ϕⁿ ϕ̄ⁿ̄ belonging to the m-th copy of basis vector i of sector s.
+# A basis vector with U(1) charge q has n - n̄ = q.
+function phi4_complex_exponents(s::U1Irrep, ::Int, m::Int)
+    q = Int(s.charge)
+    return q >= 0 ? (m - 1 + q, m - 1) : (m - 1, m - 1 - q)
+end
+# For CU1Irrep(q, 2), the first basis vector carries U(1) charge +q, the second -q.
+function phi4_complex_exponents(s::CU1Irrep, i::Int, m::Int)
+    q = Int(s.j)
+    return (q == 0 || i == 1) ? (m - 1 + q, m - 1) : (m - 1, m - 1 + q)
+end
+
+# Element of the Taylor-expanded tensor for legs with exponents (a, b), (c, d), (e, f), (g, h).
+# It vanishes unless U(1) charge is conserved: (a - b) + (c - d) == (e - f) + (g - h).
+function phi4_complex_taylor_element(moments, logfact, (a, b), (c, d), (e, f), (g, h))
+    (a + c + f + h == b + d + e + g) || return 0.0
+    n = a + b + c + d + e + f + g + h
+    logdenom = 0.5 * (
+        log(2) * n +
+            logfact[a + 1] + logfact[b + 1] + logfact[c + 1] + logfact[d + 1] +
+            logfact[e + 1] + logfact[f + 1] + logfact[g + 1] + logfact[h + 1]
+    )
+    return 2π * moments[n + 2] / exp(logdenom)
+end
 
 #####################################
 #       TENSOR FUNCTIONS            #
@@ -147,13 +166,12 @@ end
     phi4_complex(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
     phi4_complex(::Type{Z2Irrep ⊠ Z2Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
     phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
+    phi4_complex(::Type{CU1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
 
 Constructs the partition function tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
 
-It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
-
-Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry or explicit U(1) symmetry on each of its spaces.
-Defaults to U(1) symmetry if the symmetry type is not provided.
+Compatible with no symmetry, explicit ℤ₂×ℤ₂ symmetry, explicit U(1) symmetry or explicit O(2) symmetry on each of its spaces.
+Defaults to CU(1)/O(2) symmetry if the symmetry type is not provided.
 
 # Arguments
 - `K::Integer`: Approximation parameter.
@@ -162,20 +180,32 @@ Defaults to U(1) symmetry if the symmetry type is not provided.
 
 # Approximation parameter `K`
 ## Trivial (no symmetry)
-The tensor is constructed by performing a Gauss-Hermite quadrature to approximate the integrals in the partition function.
+The tensor is constructed by performing a [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature) to approximate the integrals in the partition function.
 The bond dimension is equal to `K^2`.
 
 ## ℤ₂×ℤ₂ symmetry
 The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
-The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
+The order of the Taylor expansion is `K`, which has to be even. The total bond dimension is `K^2`.
 
 ## U(1) symmetry
 The tensor is constructed by Taylor expanding the mixed sites term in the partition function.
-The order of the Taylor expansion is `K`. The total bond dimension is `K^2`.
+The order of the Taylor expansion is `K`, which has to be even. The total bond dimension is `K^2`.
+
+Each basis state corresponds to a monomial ``ϕ^n \\bar{ϕ}^{\\bar{n}}`` with ``0 ≤ n, \\bar{n} < K`` and carries U(1) charge ``q = n - \\bar{n}``.
+The charge `q` appears with multiplicity `K - |q|`.
+
+## O(2) symmetry
+Use `CU1Irrep` to make the full O(2) = U(1) ⋊ ℤ₂ symmetry of the model explicit, where the ℤ₂ is charge conjugation ``ϕ ↔ ϕ^\\dagger``.
+The tensor is the same as the U(1) symmetric tensor, but expressed in a basis that also respects charge conjugation.
+The order of the Taylor expansion is `K`, which has to be even. The total bond dimension is `K^2`.
+
+The bond space consists of `CU1Irrep(0, 0)` with multiplicity `K` and the two-dimensional irreps `CU1Irrep(q, 2)`, which combine the U(1) charges ``±q``, with multiplicity `K - q` for `q = 1, …, K - 1`.
+
+This is the default symmetry type if the symmetry type is not provided.
 
 # Examples
 ```julia
-    phi4_complex(10, -1., 1.)
+    phi4_complex(CU1Irrep, 10, -1., 1.)
 ```
 
 !!! info
@@ -189,72 +219,45 @@ Piceu Jarid and Adwait Naravane, but based on:
 See also: [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕabs`](@ref), [`phi4_complex_impϕ2`](@ref), [`phi4_complex_all`](@ref).
 """
 function phi4_complex(K::Integer, μ0::Float64, λ::Float64; kwargs...)
-    return phi4_complex(U1Irrep, K, μ0, λ; kwargs...)
+    return phi4_complex(CU1Irrep, K, μ0, λ; kwargs...)
 end
 function phi4_complex(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # Determine weights
-    weights = [ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-    # Build tensor
-    t = phi4_complex_tensor(f, weights; T = T)
-    return t
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, (PHI4_COMPLEX_INSERTIONS.one,); T))
 end
 function phi4_complex(::Type{Z2Irrep ⊠ Z2Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
-    if K % 2 != 0
-        error("K must be even to split into even/odd groups")
-    end
+    iseven(K) || throw(ArgumentError("K must be even to split into even/odd groups"))
 
-    # precompute moment
-    moments = moment_matrix(4 * K, μ0, λ)
-    # log factorials 0..K-1
-    logfact = log.(factorial.(0:(K - 1)))
-
+    # Re ϕ and Im ϕ each appear with a total power of at most 4(K - 1)
+    moments = phi4_complex_z2z2_moments(4 * (K - 1), μ0, λ)
+    logfact = logfactorial.(0:(K - 1))
 
     T_arr = zeros(T, K, K, K, K, K, K, K, K)
 
     @threads for a in 0:(K - 1)
         for c in 0:(K - 1), f in 0:(K - 1), h in 0:(K - 1)
-            # Answer is zero if a+c+f+h is odd
-            if isodd(a + c + f + h)
-                continue
-            end
+            # Answer is zero if the total power of Re ϕ is odd
+            α = a + c + f + h
+            isodd(α) && continue
 
             for b in 0:(K - 1), d in 0:(K - 1), e in 0:(K - 1), g in 0:(K - 1)
-                # Answer is zero if b+d+e+g is odd
-                if isodd(b + d + e + g)
-                    continue
-                end
-
-                # Calculate moment
-                α = a + c + f + h
+                # Answer is zero if the total power of Im ϕ is odd
                 β = b + d + e + g
-                M = moments[α + 1, β + 1]
+                isodd(β) && continue
 
-                # denomenator via logfacts
-                logdenom = 0.5 * (logfact[a + 1] + logfact[b + 1] + logfact[c + 1] + logfact[d + 1] + logfact[e + 1] + logfact[f + 1] + logfact[g + 1] + logfact[h + 1])
-                denom = exp(logdenom)
-
-                val = M / denom
-
-                # store into array (indices +1)
-                T_arr[a + 1, b + 1, c + 1, d + 1, e + 1, f + 1, g + 1, h + 1] = val
+                logdenom = 0.5 * (
+                    logfact[a + 1] + logfact[b + 1] + logfact[c + 1] + logfact[d + 1] +
+                        logfact[e + 1] + logfact[f + 1] + logfact[g + 1] + logfact[h + 1]
+                )
+                T_arr[a + 1, b + 1, c + 1, d + 1, e + 1, f + 1, g + 1, h + 1] = moments[α + 1, β + 1] / exp(logdenom)
             end
         end
     end
 
-    # Make it block diagonal
-    evens = 1:2:K
-    odds = 2:2:K
-    perm = vcat(evens, odds)
+    # Make it block diagonal: even powers first, then odd powers
+    perm = vcat(1:2:K, 2:2:K)
     T_block = T_arr[perm, perm, perm, perm, perm, perm, perm, perm]
 
-
-    # Build Z2 spaces
+    # Build ℤ₂ × ℤ₂ spaces by fusing the Re ϕ and Im ϕ legs
     V = Z2Space([Z2Irrep(0) => K // 2, Z2Irrep(1) => K // 2])
     T_unfused = TensorMap(T_block, V ⊗ V ⊗ V ⊗ V ← V ⊗ V ⊗ V ⊗ V)
 
@@ -264,78 +267,43 @@ function phi4_complex(::Type{Z2Irrep ⊠ Z2Irrep}, K::Integer, μ0::Float64, λ:
     @tensor T_fused[-1 -2; -3 -4] := T_unfused[1 2 3 4; 5 6 7 8] * U[-1; 1 2] * U[-2; 3 4] * Udg[5 6; -3] * Udg[7 8; -4]
     return T_fused
 end
-function phi4_complex(::Type{U1Irrep}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64)
-    if K % 2 != 0
-        error("K must be even")
-    end
+function phi4_complex(::Type{I}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = Float64) where {I <: Union{U1Irrep, CU1Irrep}}
+    iseven(K) || throw(ArgumentError("K must be even"))
 
-    moments = precompute_moments_complex(K, μ0, λ)
-    logfact = log.(factorial.(0:(K - 1)))
+    # ϕ and ϕ̄ each appear with a total power of at most 4(K - 1)
+    moments = radial_moments_complex(8 * (K - 1) + 1, μ0, λ)
+    logfact = logfactorial.(0:(K - 1))
 
-    V1 = U1Space([U1Irrep(q) => 1 for q in 0:(K - 1)]...)
-    V2 = U1Space([U1Irrep(q) => 1 for q in 0:-1:(-K + 1)]...)
-    W = fuse(V1, V2)
+    V = phi4_complex_space(I, K)
+    t = zeros(T, V ⊗ V ← V ⊗ V)
 
-    # Build multiplicity index lookup:
-    # For fused charge q = a - B, the pairs (a, B) are ordered by increasing a.
-    # mult_index[q][a] = the 1-based index into the W-block for that pair.
-    mult_index = Dict{Int, Dict{Int, Int}}()
-    for q in (-(K - 1)):(K - 1)
-        pairs = Int[]
-        for a in max(0, q):(min(K - 1, q + K - 1))
-            B = a - q
-            (0 <= B <= K - 1) || continue
-            push!(pairs, a)
-        end
-        mult_index[q] = Dict(a => i for (i, a) in enumerate(pairs))
-    end
+    # Every block t[f₁, f₂] is the projection of the dense tensor D, written in the monomial basis, onto the fusion trees:
+    # t[f₁, f₂] = 1 / dim(c) * Σ_μ C₁₂[i₁, i₂, μ] * D[i₁, i₂, i₃, i₄] * C₃₄[i₃, i₄, μ]
+    # For U1Irrep all fusion tensors are trivial, and this reduces to copying the elements of D.
+    @threads for (f₁, f₂) in collect(fusiontrees(t))
+        s₁, s₂ = f₁.uncoupled
+        s₃, s₄ = f₂.uncoupled
+        c = f₁.coupled
 
-    T_fused = TensorMap(zeros(T, K^2, K^2, K^2, K^2), W ⊗ W ← W ⊗ W)
+        C₁₂ = fusiontensor(s₁, s₂, c)
+        C₃₄ = fusiontensor(s₃, s₄, c)
+        block = t[f₁, f₂]
 
-    for (split_tree, fuse_tree) in fusiontrees(T_fused)
-        q1 = Int(split_tree.uncoupled[1].charge)
-        q2 = Int(split_tree.uncoupled[2].charge)
-        q3 = Int(fuse_tree.uncoupled[1].charge)
-        q4 = Int(fuse_tree.uncoupled[2].charge)
+        for i₁ in 1:dim(s₁), i₂ in 1:dim(s₂), i₃ in 1:dim(s₃), i₄ in 1:dim(s₄)
+            w = sum(μ -> C₁₂[i₁, i₂, μ, 1] * C₃₄[i₃, i₄, μ, 1], 1:dim(c)) / dim(c)
+            iszero(w) && continue
 
-        block = T_fused[split_tree, fuse_tree]
-        # block has shape (mult(q1) × mult(q2)) × (mult(q3) × mult(q4))
-        # index as block[i1, i2, i3, i4] where each i is the multiplicity index
-
-        for a in max(0, q1):min(K - 1, q1 + K - 1)
-            B = a - q1;  (0 <= B <= K - 1) || continue
-            i1 = mult_index[q1][a]
-
-            for c in max(0, q2):min(K - 1, q2 + K - 1)
-                D = c - q2;  (0 <= D <= K - 1) || continue
-                i2 = mult_index[q2][c]
-
-                for e in max(0, q3):min(K - 1, q3 + K - 1)
-                    F = e - q3;  (0 <= F <= K - 1) || continue
-                    i3 = mult_index[q3][e]
-
-                    for g in max(0, q4):min(K - 1, q4 + K - 1)
-                        H = g - q4;  (0 <= H <= K - 1) || continue
-                        i4 = mult_index[q4][g]
-
-                        sum_power = a + B + c + D + e + F + g + H
-                        M = moments[sum_power + 2]
-                        (M == 0.0) && continue
-
-                        logdenom = 0.5 * (
-                            log(2) * sum_power +
-                                logfact[a + 1] + logfact[B + 1] + logfact[c + 1] + logfact[D + 1] +
-                                logfact[e + 1] + logfact[F + 1] + logfact[g + 1] + logfact[H + 1]
-                        )
-
-                        block[i1, i2, i3, i4] += 2π * M / exp(logdenom)
-                    end
-                end
+            for m₁ in axes(block, 1), m₂ in axes(block, 2), m₃ in axes(block, 3), m₄ in axes(block, 4)
+                block[m₁, m₂, m₃, m₄] += w * phi4_complex_taylor_element(
+                    moments, logfact,
+                    phi4_complex_exponents(s₁, i₁, m₁), phi4_complex_exponents(s₂, i₂, m₂),
+                    phi4_complex_exponents(s₃, i₃, m₃), phi4_complex_exponents(s₄, i₄, m₄),
+                )
             end
         end
     end
 
-    return T_fused
+    return t
 end
 
 """
@@ -344,7 +312,7 @@ end
 Constructs the impurity tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
 
 The impurity is a ϕ operator on this site.
-    
+
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
 # Arguments
@@ -366,19 +334,8 @@ function phi4_complex_impϕ(K::Integer, μ0::Float64, λ::Float64; kwargs...)
     return phi4_complex_impϕ(Trivial, K, μ0, λ; kwargs...)
 end
 function phi4_complex_impϕ(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # Determine weights
-    weights = [(ys[α] + ys[β]im) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-    # Build tensor
-    T = phi4_complex_tensor(f, weights; T = T)
-    return T
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, (PHI4_COMPLEX_INSERTIONS.ϕ,); T))
 end
-
 
 """
     phi4_complex_impϕdag([Type{Trivial}], K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
@@ -408,17 +365,7 @@ function phi4_complex_impϕdag(K::Integer, μ0::Float64, λ::Float64; kwargs...)
     return phi4_complex_impϕdag(Trivial, K, μ0, λ; kwargs...)
 end
 function phi4_complex_impϕdag(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # Determine weights
-    weights = [(ys[α] - ys[β]im) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-    # Build tensor
-    T = phi4_complex_tensor(f, weights; T = T)
-    return T
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, (PHI4_COMPLEX_INSERTIONS.ϕdag,); T))
 end
 
 """
@@ -427,7 +374,7 @@ end
 Constructs the impurity tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
 
 The impurity is a √(ϕϕ†) operator on this site.
-    
+
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
 # Arguments
@@ -449,17 +396,7 @@ function phi4_complex_impϕabs(K::Integer, μ0::Float64, λ::Float64; kwargs...)
     return phi4_complex_impϕabs(Trivial, K, μ0, λ; kwargs...)
 end
 function phi4_complex_impϕabs(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # Determine weights
-    weights = [sqrt(ys[α]^2 + ys[β]^2) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-    # Build tensor
-    T = phi4_complex_tensor(f, weights; T = T)
-    return T
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, (PHI4_COMPLEX_INSERTIONS.ϕabs,); T))
 end
 
 """
@@ -468,7 +405,7 @@ end
 Constructs the impurity tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
 
 The impurity is a ϕϕ† operator on this site.
-    
+
 It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
 
 # Arguments
@@ -490,17 +427,7 @@ function phi4_complex_impϕ2(K::Integer, μ0::Float64, λ::Float64; kwargs...)
     return phi4_complex_impϕ2(Trivial, K, μ0, λ; kwargs...)
 end
 function phi4_complex_impϕ2(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # Determine weights
-    weights = [sqrt(ys[α]^2 + ys[β]^2) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-    # Build tensor
-    T = phi4_complex_tensor(f, weights; T = T)
-    return T
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, (PHI4_COMPLEX_INSERTIONS.ϕ2,); T))
 end
 
 """
@@ -517,6 +444,9 @@ It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2
 - `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
 - `λ::Float64`: Coupling constant.
 
+# Returns
+The tuple `(T, T_ϕ, T_ϕdag, T_ϕabs, T_ϕ2)`.
+
 # Examples
 ```julia
     phi4_complex_all(10, -1., 1.)
@@ -531,64 +461,5 @@ function phi4_complex_all(K::Integer, μ0::Float64, λ::Float64; kwargs...)
     return phi4_complex_all(Trivial, K, μ0, λ; kwargs...)
 end
 function phi4_complex_all(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
-    ys, ws = gausshermite(K)
-
-    # Determine fmatrix
-    f = fmatrix_complex(ys, μ0, λ)
-
-    # SVD fmatrix
-    U, S, V = svd_compact!(f)
-
-    N = K^2
-
-    T_arr = zeros(T, N, N, N, N)
-    T_ϕ_arr = zeros(T, N, N, N, N)
-    T_ϕdag_arr = zeros(T, N, N, N, N)
-    T_ϕabs_arr = zeros(T, N, N, N, N)
-    T_ϕ2_arr = zeros(T, N, N, N, N)
-
-    w = [ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-    w_ϕ = [(ys[α] + ys[β]im) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-    w_ϕdag = [(ys[α] - ys[β]im) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-    w_ϕabs = [sqrt(ys[α]^2 + ys[β]^2) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-    w_ϕ2 = [(ys[α]^2 + ys[β]^2) * ws[α] * ws[β] * exp(ys[α]^2 + ys[β]^2) for α in 1:K, β in 1:K]
-
-
-    perms = collect(permutations(1:4))  # 24 total
-
-    @threads for i in 1:N
-        for j in i:N, k in j:N, l in k:N
-            s = 0.0
-            s_ϕ = 0.0
-            s_ϕdag = 0.0
-            s_ϕabs = 0.0
-            s_ϕ2 = 0.0
-            factor = √(S[i, i] * S[j, j] * S[k, k] * S[l, l])
-            for α in 1:K, β in 1:K
-                s += factor * w[α, β] * U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] * V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
-                s_ϕ += factor * w_ϕ[α, β] * U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] * V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
-                s_ϕdag += factor * w_ϕdag[α, β] * U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] * V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
-                s_ϕabs += factor * w_ϕabs[α, β] * U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] * V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
-                s_ϕ2 += factor * w_ϕ2[α, β] * U[(α - 1) * K + β, i] * U[(α - 1) * K + β, j] * V[k, (α - 1) * K + β] * V[l, (α - 1) * K + β]
-            end
-
-            # Fill all 24 symmetric permutations
-            idxs = (i, j, k, l)
-            for p in perms
-                ii, jj, kk, ll = idxs[p[1]], idxs[p[2]], idxs[p[3]], idxs[p[4]]
-                T_arr[ii, jj, kk, ll] = s
-                T_ϕ_arr[ii, jj, kk, ll] = s_ϕ
-                T_ϕdag_arr[ii, jj, kk, ll] = s_ϕdag
-                T_ϕabs_arr[ii, jj, kk, ll] = s_ϕabs
-                T_ϕ2_arr[ii, jj, kk, ll] = s_ϕ2
-            end
-        end
-    end
-
-    T = TensorMap(T_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    T_ϕ = TensorMap(T_ϕ_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    T_ϕdag = TensorMap(T_ϕdag_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    T_ϕabs = TensorMap(T_ϕabs_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    T_ϕ2 = TensorMap(T_ϕ2_arr, ℂ^N ⊗ ℂ^N ← ℂ^N ⊗ ℂ^N)
-    return T, T_ϕ, T_ϕdag, T_ϕabs, T_ϕ2
+    return phi4_complex_quadrature_tensors(K, μ0, λ, values(PHI4_COMPLEX_INSERTIONS); T)
 end
