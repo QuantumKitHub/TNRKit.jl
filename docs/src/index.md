@@ -17,6 +17,7 @@ Many common TNR schemes have already been implemented:
 * [`BTRG`](@ref) (bond-weighted TRG)
 * [`LoopTNR`](@ref) (entanglement filtering + loop optimization)
 * [`SLoopTNR`](@ref) (c4 & inversion symmetric LoopTNR)
+* [`GILTTNR`](@ref) (graph-independent local truncations + TRG)
 * [`HOTRG`](@ref) (higher order TRG)
 * [`ATRG`](@ref) (anisotropic TRG)
 
@@ -93,7 +94,7 @@ TNRKit includes several common models out of the box.
 - XY model in 2D: `classical_XY(S, β, charge_trunc)` where `S` can be `U1Irrep` or `CU1Irrep` to specify the symmetry.
 - Real $\phi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
 - Real $\phi^4$ model with impurities: `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` can be `Trivial`.
-- Complex $\phi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep` or `U1Irrep` to specify the symmetry.
+- Complex $\phi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep`, `U1Irrep` or `CU1Irrep` (O(2)) to specify the symmetry.
 - Gross-Neveu model: `gross_neveu_start(S, μ, m, g)` where `S` can be `FermionParity` to specify the symmetry.
 
 ## Included Models on the triangular lattice

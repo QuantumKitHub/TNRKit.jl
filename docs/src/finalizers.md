@@ -44,11 +44,11 @@ We use this type parameter `E` to correctly allocate a `Vector{E}` in which all 
 The default [`Finalizer`](@ref) is `default_Finalizer` which normalizes the tensor(s) and stores the norm.
 For the impurity methods ([`ImpurityTRG`](@ref) and [`ImpurityHOTRG`](@ref)) the defaults are `ImpurityTRG_Finalizer` and `ImpurityHOTRG_Finalizer` respectively, as these methods usually require us to store more than just one norm per iteration.
 
-[`TRG`](@ref), [`ATRG`](@ref), [`HOTRG`](@ref) and [`BTRG`](@ref) can be normalized by calculating the norm of a 2x2 patch of tensors, which is more computationally expensive but should™ be more stable.
+[`TRG`](@ref), [`ATRG`](@ref), [`HOTRG`](@ref), [`BTRG`](@ref) and [`GILTTNR`](@ref) can be normalized by calculating the norm of a 2x2 patch of tensors, which is more computationally expensive but should™ be more stable.
 
 TNRKit exports the following pre-built `Finalizer` instances:
 
-- **`two_by_two_Finalizer`** - Normalizes using a 2×2 patch of tensors (more stable but computationally more expensive). Works with [`TRG`](@ref), [`ATRG`](@ref), [`HOTRG`](@ref), and [`BTRG`](@ref).
+- **`two_by_two_Finalizer`** - Normalizes using a 2×2 patch of tensors (more stable but computationally more expensive). Works with [`TRG`](@ref), [`ATRG`](@ref), [`HOTRG`](@ref), [`BTRG`](@ref), and [`GILTTNR`](@ref).
 
 - **`GSDegeneracy_Finalizer`** - Computes the ground state degeneracy at each TNR step. Returns a `Float64` at each iteration.
 
