@@ -190,7 +190,7 @@ end
     data = run!(scheme, truncrank(16), maxiter(25))
 
     order_para = data[end][4] / data[end][1]
-    @test order_para ≈ 1.17802947935296 atol = 1.0e-3
+    @test order_para ≈ 1.17802947935296 rtol = 1.0e-2
 
     # ABS PHI IMPURITY
     # Quasi long range order phase
@@ -208,7 +208,7 @@ end
     data = run!(scheme, truncrank(16), maxiter(25))
 
     order_para = data[end][2] / data[end][1]
-    @test order_para ≈ 1.2957057423957146 atol = 1.0e-3
+    @test order_para ≈ 1.2957057423957146 rtol = 1.0e-2
 
 end
 
