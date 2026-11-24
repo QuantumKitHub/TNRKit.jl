@@ -463,3 +463,42 @@ end
 function phi4_complex_all(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64; T::Type{<:Number} = ComplexF64)
     return phi4_complex_quadrature_tensors(K, μ0, λ, values(PHI4_COMPLEX_INSERTIONS); T)
 end
+
+"""
+    phi4_complex_imp([Type{Trivial}], K::Integer, μ0::Float64, λ::Float64, a::Integer, b::Integer; T::Type{<:Number} = ComplexF64)
+
+Constructs the impurity tensor for a 2D square lattice for the complex ϕ^4 model with a given approximation `K`, bare mass µ_0^2 `μ0` and interaction constant `λ`.
+
+The impurity is a ``ϕ^a (ϕ^†)^b`` operator on this site, with ``ϕ = \\mathrm{Re}\\,ϕ + i\\,\\mathrm{Im}\\,ϕ``.
+`(a, b) = (0, 0)` gives the pure tensor [`phi4_complex`](@ref) with `Trivial` symmetry, while `(1, 0)`, `(0, 1)` and `(1, 1)`
+give respectively [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref) and [`phi4_complex_impϕ2`](@ref).
+This makes it easy to construct all impurity tensors of order `(a, b)` for [`ImpurityHOTRG`](@ref), e.g.
+`Dict((a, b) => phi4_complex_imp(K, μ0, λ, a, b) for a in 0:2, b in 0:2 if (a, b) != (0, 0))`.
+
+It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
+
+# Arguments
+- `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
+- `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
+- `λ::Float64`: Coupling constant.
+- `a::Integer`: Power of ϕ of the impurity.
+- `b::Integer`: Power of ϕ† of the impurity.
+
+# Examples
+```julia
+    phi4_complex_imp(10, -1., 1., 2, 2) # (ϕϕ†)^2 impurity
+```
+
+# References
+Piceu Jarid, but based on [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
+
+See also: [`phi4_complex`](@ref), [`phi4_complex_impϕ`](@ref), [`phi4_complex_impϕdag`](@ref), [`phi4_complex_impϕ2`](@ref), [`phi4_complex_all`](@ref).
+"""
+function phi4_complex_imp(K::Integer, μ0::Float64, λ::Float64, a::Integer, b::Integer; kwargs...)
+    return phi4_complex_imp(Trivial, K, μ0, λ, a, b; kwargs...)
+end
+function phi4_complex_imp(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64, a::Integer, b::Integer; T::Type{<:Number} = ComplexF64)
+    (a >= 0 && b >= 0) || throw(ArgumentError("The powers of the impurity must be non-negative"))
+    # On-site insertion g(Re ϕ, Im ϕ) = ϕ^a (ϕ†)^b
+    return only(phi4_complex_quadrature_tensors(K, μ0, λ, ((x, y) -> (x + y * im)^a * (x - y * im)^b,); T))
+end
