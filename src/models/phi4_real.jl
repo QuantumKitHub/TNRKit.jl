@@ -120,7 +120,7 @@ Not compatible with a non-zero magnetic field, as the magnetic field breaks the 
 * [Kadoh et. al. 10.1007/JHEP05(2019)184 (2019)](@cite kadoh2019)
 * [Delcamp et. al. Phys. Rev. Research 2, 033278 (2020)](@cite delcamp2020)
 
-See also: [`phi4_real_imp1`](@ref), [`phi4_real_imp2`](@ref).
+See also: [`phi4_real_imp`](@ref), [`phi4_real_imp1`](@ref), [`phi4_real_imp2`](@ref).
 """
 function phi4_real(K::Integer, μ0::Float64, λ::Float64, h::Float64 = 0.0; kwargs...)
     return phi4_real(Z2Irrep, K, μ0, λ, h; kwargs...)
@@ -227,4 +227,39 @@ function phi4_real_imp2(K::Integer, μ0::Float64, λ::Float64, h::Float64 = 0.0;
 end
 function phi4_real_imp2(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64, h::Float64 = 0.0; T::Type{<:Number} = Float64)
     return only(phi4_real_quadrature_tensors(K, μ0, λ, h, (PHI4_REAL_INSERTIONS.ϕ2,); T))
+end
+
+"""
+    phi4_real_imp([Type{Trivial}], K::Integer, μ0::Float64, λ::Float64, n::Integer, h::Float64 = 0.0; T::Type{<:Number} = Float64)
+
+Constructs the impurity tensor for a 2D square lattice for the real ϕ^4 model with a given approximation (and bond dimension) `K`, bare mass ``µ_0^2`` `μ0`, interaction constant `λ` and external field `h`.
+
+The impurity is a ϕ^n operator on this site (`n = 0` gives the pure tensor [`phi4_real`](@ref) with `Trivial` symmetry,
+`n = 1` and `n = 2` give [`phi4_real_imp1`](@ref) and [`phi4_real_imp2`](@ref)).
+This makes it easy to construct all impurity tensors for [`ImpurityHOTRG`](@ref), e.g. `[phi4_real_imp(K, μ0, λ, n) for n in 1:4]`.
+
+It is based on [Gauss-Hermite quadrature](https://en.wikipedia.org/wiki/Gauss%E2%80%93Hermite_quadrature).
+
+# Arguments
+- `K::Integer`: Number of quadrature points for Gauss-Hermite integration.
+- `μ0::Float64`: Bare mass. Note that in the calculation actually ``µ_0^2`` is used, but for readibility we write the ``µ_0^2`` as μ0
+- `λ::Float64`: Coupling constant.
+- `n::Integer`: Power of ϕ of the impurity.
+- `h::Float64`: External field (default is 0).
+
+# Examples
+```julia
+    phi4_real_imp(10, -1.0, 1.0, 4)        # ϕ^4 impurity
+    phi4_real_imp(10, -1.0, 1.0, 3, 0.1)   # ϕ^3 impurity with external field
+```
+
+See also: [`phi4_real`](@ref), [`phi4_real_imp1`](@ref), [`phi4_real_imp2`](@ref).
+"""
+function phi4_real_imp(K::Integer, μ0::Float64, λ::Float64, n::Integer, h::Float64 = 0.0; kwargs...)
+    return phi4_real_imp(Trivial, K, μ0, λ, n, h; kwargs...)
+end
+function phi4_real_imp(::Type{Trivial}, K::Integer, μ0::Float64, λ::Float64, n::Integer, h::Float64 = 0.0; T::Type{<:Number} = Float64)
+    n >= 0 || throw(ArgumentError("The power of the impurity must be non-negative"))
+    # On-site insertion g(ϕ) = ϕ^n
+    return only(phi4_real_quadrature_tensors(K, μ0, λ, h, (x -> x^n,); T))
 end
