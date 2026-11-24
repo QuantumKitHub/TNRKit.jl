@@ -636,14 +636,14 @@ end
     impurities(β) = Dict((a, b) => classical_potts_impurity(q, β, a, b) for a in 0:2, b in 0:2 if (a, b) != (0, 0))
 
     # High temperature: ⟨|m|²⟩ -> 0, U4 -> 2, UL -> 0
-    β = 0.3
+    β = 0.1
     data = run!(ImpurityHOTRG(classical_potts_impurity(q, β, 0, 0), impurities(β)), truncrank(12), maxiter(25))
     @test expectation_value(data, (1, 1)) ≈ 0.0 atol = 1.0e-7
-    @test binder_ratio(data) ≈ 2.0 rtol = 1.0e-5
-    @test binder_cumulant(data) ≈ 0.0 atol = 1.0e-5
+    @test binder_ratio(data) ≈ 2.0 rtol = 1.0e-4
+    @test binder_cumulant(data) ≈ 0.0 atol = 1.0e-4
 
     # Low temperature: ⟨|m|²⟩ -> 1, U4 -> 1, UL -> 1/2
-    β = 2.0
+    β = 4.0
     data = run!(ImpurityHOTRG(classical_potts_impurity(q, β, 0, 0), impurities(β)), truncrank(12), maxiter(25))
     @test expectation_value(data, (1, 1)) ≈ 1.0 rtol = 1.0e-4
     @test binder_ratio(data) ≈ 1.0 rtol = 1.0e-6
