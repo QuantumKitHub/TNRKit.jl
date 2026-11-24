@@ -190,17 +190,21 @@ function classical_ising(::Type{Z2Irrep}, β::Real; T::Type{<:Number} = Float64,
 end
 
 """
-    classical_ising_impurity([Type{Trivial}], β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0)
+    classical_ising_impurity([Type{Trivial}], β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0, order::Integer = 1)
 
 Constructs the partition function tensor for a 2D square lattice
 for the classical Ising model with a given inverse temperature `β` and external magnetic field `h`
-with a magnetisation impurity. Compatible with no symmetry on each of its spaces.
+with a magnetisation impurity ``σ^{order}``. Compatible with no symmetry on each of its spaces.
+
+Since ``σ^2 = 1``, an even `order` gives the pure tensor `classical_ising(Trivial, β; ...)` and an odd `order` gives the ``σ`` impurity.
+This makes it easy to construct all impurity tensors for [`ImpurityHOTRG`](@ref), e.g. `[classical_ising_impurity(β; order = k) for k in 1:4]`.
 
 # Examples
 ```julia
     classical_ising_impurity()                          # default: isotropic at βc
     classical_ising_impurity(0.5; h = 1.0)              # with magnetic field
     classical_ising_impurity(0.5; Jx = 1.0, Jy = 0.5)   # anisotropic couplings
+    classical_ising_impurity(0.5; order = 2)            # σ² impurity (= pure tensor)
 ```
 !!! info
     When calculating the free energy with `free_energy()`, set the `initial_size` keyword argument to `2.0`.
@@ -212,11 +216,13 @@ function classical_ising_impurity(β::Real; kwargs...)
     return classical_ising_impurity(Trivial, β; kwargs...)
 end
 classical_ising_impurity(; kwargs...) = classical_ising_impurity(ising_βc; kwargs...)
-function classical_ising_impurity(::Type{Trivial}, β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0)
+function classical_ising_impurity(::Type{Trivial}, β::Real; T::Type{<:Number} = Float64, h = 0.0, Jx = 1.0, Jy = 1.0, order::Integer = 1)
+    @assert order ≥ 0 "The order of the impurity must be non-negative"
     Kx, Ky = β * Jx, β * Jy
     init = zeros(T, 2, 2, 2, 2)
+    # Inserting σ^order swaps cosh ↔ sinh for odd orders (σ² = 1, so even orders give the pure tensor)
     for (i, j, k, l) in Iterators.product([1:2 for _ in 1:4]...)
-        init[i, j, k, l] = mod(i + j + k + l, 2) == 0 ? sinh(h * β) : cosh(h * β)
+        init[i, j, k, l] = mod(i + j + k + l + order, 2) == 0 ? cosh(h * β) : sinh(h * β)
     end
     init = TensorMap(init, ℂ^2 ⊗ ℂ^2 ← ℂ^2 ⊗ ℂ^2)
 
