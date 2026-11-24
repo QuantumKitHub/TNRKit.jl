@@ -89,6 +89,17 @@ Constructs the partition function tensor for a Potts model with `q` states
 and a given inverse temperature `β` with impurities in sectors `k1` and `k2`.
 
 The impurity breaks the ℤq symmetry, but the impurity sectors match the symmetry sectors of the model.
+
+The tensor corresponds to the impurity ``m^{k_1} (m^*)^{k_2}`` with ``m = e^{2πiσ/q}`` on this site, where `k1 = k2` (e.g. `(0, 0)`) gives the pure tensor.
+This makes it suitable to compute moments of order `(a, b)` with [`ImpurityHOTRG`](@ref), e.g. for the Binder ratio:
+```julia
+    T = classical_potts_impurity(q, β, 0, 0) # pure tensor in the same basis as the impurity tensors
+    T_imps = Dict((a, b) => classical_potts_impurity(q, β, a, b) for a in 0:2, b in 0:2 if (a, b) != (0, 0))
+    scheme = ImpurityHOTRG(T, T_imps)
+```
+!!! warning
+    The pure tensor [`classical_potts`](@ref) is in a different basis, so use `classical_potts_impurity(q, β, 0, 0)` as the pure tensor for impurity methods.
+
 # Examples
 ```julia
     classical_potts_impurity(3) # Default inverse temperature is `potts_βc(3)`
