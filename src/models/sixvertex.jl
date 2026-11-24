@@ -38,7 +38,7 @@ end
 function sixvertex(::Type{U1Irrep}; T::Type{<:Number} = Float64, a = 1.0, b = 1.0, c = 1.0)
     pspace = U1Space(-1 // 2 => 1, 1 // 2 => 1)
     mpo = zeros(T, pspace ⊗ pspace, pspace ⊗ pspace)
-    block(mpo, Irrep[U₁](0)) .= [b c; c b]
+    block(mpo, Irrep[U₁](0)) .= [c b; b c]
     block(mpo, Irrep[U₁](1)) .= reshape([a], (1, 1))
     block(mpo, Irrep[U₁](-1)) .= reshape([a], (1, 1))
     return mpo
