@@ -240,7 +240,7 @@ end
 # Real ϕ⁴ moments and Binder ratio
 @testset "Real φ⁴ model - Binder cumulant" begin
     K, λ = 10, 1.0
-    for (μ0, UL) in ((0.0, 0.0), (-2.0, 2/3)) # disordered and ordered phase
+    for (μ0, UL) in ((0.0, 0.0), (-2.0, 2 / 3)) # disordered and ordered phase
         Tpure = phi4_real(Trivial, K, μ0, λ)
         T_imps = [phi4_real_imp(K, μ0, λ, n) for n in 1:4]
         data = run!(ImpurityHOTRG(Tpure, T_imps), truncrank(12), maxiter(25))
