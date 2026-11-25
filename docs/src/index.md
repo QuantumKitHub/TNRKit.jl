@@ -38,7 +38,7 @@ Many common TNR schemes have already been implemented:
 
 **Impurity Methods**
 * [`ImpurityTRG`](@ref)
-* [`ImpurityHOTRG`](@ref)
+* [`ImpurityHOTRG`](@ref) (moments of arbitrary order, see [Impurity methods: moments of the order parameter](@ref))
 
 **3D cubic tensor networks**
 * [`ATRG_3D`](@ref) (anisotropic TRG)
@@ -73,6 +73,26 @@ julia> abs((f - f_onsager) / f_onsager)
 ```
 Pretty impressive for a calculation that takes about 0.3s on a laptop.
 
+## Impurity methods: moments of the order parameter
+With [`ImpurityHOTRG`](@ref) the moments ``⟨m^k⟩`` of the (lattice averaged) order parameter can be calculated up to any order,
+following [Morita et al. (2018)](@cite morita2019). Provide the impurity tensors of order 1 up to the highest order you need:
+```julia
+using TNRKit, TensorKit
+
+β = 0.5
+T = classical_ising(Trivial, β) # impurity methods need tensors without symmetry
+T_imps = [classical_ising_impurity(β; order = k) for k in 1:4] # σ, σ², σ³, σ⁴
+scheme = ImpurityHOTRG(T, T_imps)
+data = run!(scheme, truncrank(16), maxiter(25))
+
+m2 = expectation_value(data, 2)  # ⟨m²⟩
+m4 = expectation_value(data, 4)  # ⟨m⁴⟩
+U4 = binder_ratio(data)          # ⟨m⁴⟩ / ⟨m²⟩²
+UL = binder_cumulant(data)       # 1 - ⟨m⁴⟩ / (3⟨m²⟩²)
+```
+Two impurity operators ``A`` and ``B`` can be used: the impurity tensors are then labelled by `(a, b)` for ``A^a B^b`` and given as a `Dict`, see [`ImpurityHOTRG`](@ref).
+Then `expectation_value(data, (a, b))` gives ``⟨A^a B^b⟩``. Often ``B`` is the complex conjugate of ``A``, e.g. ``A = ϕ`` and ``B = ϕ^†`` for a complex order parameter (complex ϕ⁴ or Potts), but ``A`` and ``B`` can be any two (unrelated) operators.
+
 ## Verbosity
 There are 3 levels of verbosity implemented in TNRKit:
 - Level 0: no TNRKit messages whatsoever.
@@ -84,17 +104,18 @@ to choose the verbosity level, simply use `run!(...; verbosity=n)`. The default 
 ## Included Models on the square lattice
 TNRKit includes several common models out of the box.
 - Ising model in 2D: `classical_ising(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
-- Ising model in 2D with impurities: `classical_ising_impurity(β; h=0)`.
+- Ising model in 2D with impurities: `classical_ising_impurity(β; h=0, order=1)` (σ^order impurity).
 - Ising model in 3D: `classical_ising_3D(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
 - Potts model in 2D: `classical_potts(S, q, β)`, where `S` can be `Trivial` or `ZNIrrep{q}` to specify the symmetry.
-- Potts model in 2D with impurities: `classical_potts_impurity(q, β)`.
+- Potts model in 2D with impurities: `classical_potts_impurity(q, β, k1, k2)` (m^k1 (m*)^k2 impurity).
 - Six Vertex model: `sixvertex(S, elt; a=1.0, b=1.0, c=1.0)` where `S` can be `Trivial`, `U1Irrep` or `CU1Irrep` to specify the symmetry and `elt` can be any number type (default is `Float64`).
 - Clock model: `classical_clock(S, q, β)` where `S` can be `Trivial`, `ZNIrrep{q}` or `DNIrrep{q}` to specify the symmetry.
 - ZN Gauge theory in 3D: `ZN_gaugetheory_dual(N, β)` where `N` is the order of the gauge group.
 - XY model in 2D: `classical_XY(S, β, charge_trunc)` where `S` can be `U1Irrep` or `CU1Irrep` to specify the symmetry.
 - Real $\phi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
-- Real $\phi^4$ model with impurities: `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` can be `Trivial`.
+- Real $\phi^4$ model with impurities: `phi4_real_imp(S, K, μ0, λ, n, h)` (ϕ^n impurity), `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` is `Trivial`.
 - Complex $\phi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep`, `U1Irrep` or `CU1Irrep` (O(2)) to specify the symmetry.
+- Complex $\phi^4$ model with impurities: `phi4_complex_imp(S, K, μ0, λ, a, b)` (ϕ^a (ϕ†)^b impurity) where `S` is `Trivial`.
 - Gross-Neveu model: `gross_neveu_start(S, μ, m, g)` where `S` can be `FermionParity` to specify the symmetry.
 
 ## Included Models on the triangular lattice

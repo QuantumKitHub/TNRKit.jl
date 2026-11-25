@@ -25,7 +25,7 @@ output_type(finalizer::Finalizer{E}) where {E} = E
 
 const default_Finalizer = Finalizer(finalize!, Float64)
 const ImpurityTRG_Finalizer = Finalizer(finalize!, Tuple{Float64, Float64})
-const ImpurityHOTRG_Finalizer = Finalizer(finalize!, Tuple{Float64, Float64, Float64, Float64})
+const ImpurityHOTRG_Finalizer = Finalizer(finalize!, NamedTuple{(:norm, :moments), <:Tuple{Float64, Dict{NTuple{2, Int}, <:Number}}})
 
 # Finalization functions for the various TNR schemes
 abstract type TNRScheme{E, S} end

@@ -99,16 +99,16 @@ function finalize!(scheme::ImpurityTRG)
 end
 
 # finalize! for ImpurityHOTRG
+# Returns (norm = n, moments = Dict((a, b) => ⟨Āᵃ B̄ᵇ⟩)) with ⟨Āᵃ B̄ᵇ⟩ = Tr S_ab / Tr T (A, B the two impurity operators).
+# The traces are kept signed (not `norm`ed) such that odd and complex moments are correct.
 function finalize!(scheme::ImpurityHOTRG)
-    n = norm(@tensor scheme.T[1 2; 2 1])
-    n_11 = norm(@tensor scheme.T_imp_order1_1[1 2; 2 1])
-    n_12 = norm(@tensor scheme.T_imp_order1_2[1 2; 2 1])
-    n_2 = norm(@tensor scheme.T_imp_order2[1 2; 2 1])
+    tr_T = @tensor scheme.T[1 2; 2 1]
+    n = norm(tr_T)
+    moments = Dict(order => (@tensor T_ab[1 2; 2 1]) / tr_T for (order, T_ab) in scheme.T_imp)
+
     scheme.T /= n
-    scheme.T_imp_order1_1 /= n
-    scheme.T_imp_order1_2 /= n
-    scheme.T_imp_order2 /= n
-    return n, n_11, n_12, n_2
+    map!(T_ab -> T_ab / n, values(scheme.T_imp))
+    return (norm = n, moments = moments)
 end
 
 # Finalizers for CorrelationHOTRG
