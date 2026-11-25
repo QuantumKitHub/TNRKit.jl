@@ -20,7 +20,7 @@ S_{a,b} \\leftarrow \\frac{1}{2^{a+b}} \\sum_{i=0}^{a} \\sum_{j=0}^{b} \\binom{a
 where ``S_{0,0} = T`` is the pure tensor and ``R(X, Y)`` is the HOTRG contraction of the tensors `X` and `Y`
 with the isometry of the **pure** tensor. The prefactor ``2^{-(a+b)}`` performs the average over the two halves.
 The moments are then obtained as ``⟨A^a B^b⟩ = \\mathrm{Tr}\\, S_{a,b} / \\mathrm{Tr}\\, T``,
-which can be extracted from the output of [`run!`](@ref) with [`expectation_value`](@ref),
+which can be extracted from the output of `run!` with [`expectation_value`](@ref),
 [`binder_ratio`](@ref) and [`binder_cumulant`](@ref).
 
 !!! info "Which orders need to be provided?"
