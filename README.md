@@ -61,7 +61,7 @@ The following schemes are currently implemented:
 
 **2D Impurity Methods**
 - ImpurityTRG (Expectation value calculation via TRG)
-- ImpurityHOTRG (Expectation value calculation via HOTRG)
+- ImpurityHOTRG (Expectation value calculation via HOTRG, for moments of arbitrary order, e.g. $\langle m \rangle$, $\langle m^2 \rangle$, $\langle m^4 \rangle$ and the Binder ratio)
 
 **2D Correlation Methods**
 - CorrelationHOTRG (Correlation function calculation via HOTRG)
@@ -118,17 +118,18 @@ To choose the verbosity level, simply use `run!(...; verbosity=n)`. The default 
 ## Included Models on the square lattice
 TNRKit includes several common models out of the box.
 - Ising model in 2D: `classical_ising(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
-- Ising model in 2D with impurities: `classical_ising_impurity(β; h=0)`.
+- Ising model in 2D with impurities: `classical_ising_impurity(β; h=0, order=1)` with a $\sigma$^`order` impurity.
 - Ising model in 3D: `classical_ising_3D(S, β; h=0)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
 - Potts model in 2D: `classical_potts(S, q, β)`, where `S` can be `Trivial` or `ZNIrrep{q}` to specify the symmetry.
-- Potts model in 2D with impurities: `classical_potts_impurity(q, β)`.
+- Potts model in 2D with impurities: `classical_potts_impurity(q, β, k1, k2)` with an m^`k1` (m\*)^`k2` impurity, where `classical_potts_impurity(q, β, 0, 0)` is the corresponding pure tensor.
 - Six Vertex model: `sixvertex(S, elt; a=1.0, b=1.0, c=1.0)` where `S` can be `Trivial`, `U1Irrep` or `CU1Irrep` to specify the symmetry and `elt` can be any number type (default is `Float64`).
 - Clock model: `classical_clock(S, q, β)` where `S` can be `Trivial`, `ZNIrrep{q}` or `DNIrrep{q}` to specify the symmetry.
 - ZN Gauge theory in 3D: `ZN_gaugetheory_dual(N, β)` where `N` is the order of the gauge group.
 - XY model in 2D: `classical_XY(S, β, charge_trunc)` where `S` can be `U1Irrep` or `CU1Irrep` to specify the symmetry.
-- Real $\phi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
-- Real $\phi^4$ model with impurities: `phi4_real_imp1(S, K, μ0, λ, h)` and `phi4_real_imp2(S, K, μ0, λ, h)` where `S` can be `Trivial`.
-- Complex $\phi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep` or `U1Irrep` to specify the symmetry.
+- Real $\varphi^4$ model: `phi4_real(S, K, μ0, λ, h)` where `S` can be `Trivial` or `Z2Irrep` to specify the symmetry.
+- Real $\varphi^4$ model with impurities: `phi4_real_imp(S, K, μ0, λ, n, h)` with a $\varphi^n$ impurity, or the shortcuts `phi4_real_imp1(S, K, μ0, λ, h)` ($\varphi$) and `phi4_real_imp2(S, K, μ0, λ, h)` ($\varphi^2$), where `S` is `Trivial` (optional).
+- Complex $\varphi^4$ model: `phi4_complex(S, K, μ0, λ)` where `S` can be `Trivial`, `Z2Irrep ⊠ Z2Irrep`, `U1Irrep` or `CU1Irrep` (O(2)) to specify the symmetry.
+- Complex $\varphi^4$ model with impurities: `phi4_complex_imp(S, K, μ0, λ, a, b)` with a $\varphi^a (\varphi^\dagger)^b$ impurity, or the shortcuts `phi4_complex_impϕ` ($\varphi$), `phi4_complex_impϕdag` ($\varphi^\dagger$), `phi4_complex_impϕ2` ($\varphi \varphi^\dagger$) and `phi4_complex_impϕabs` ($|\varphi|$), all with arguments `(S, K, μ0, λ)`, where `S` is `Trivial` (optional).
 - Gross-Neveu model: `gross_neveu_start(S, μ, m, g)` where `S` can be `FermionParity` to specify the symmetry.
 
 ## Included Models on the triangular lattice
